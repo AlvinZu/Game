@@ -43,10 +43,14 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #hitmarker{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);font-size:26px;font-weight:bold;color:#fff;opacity:0;text-shadow:0 0 6px #ff3b3b,0 0 2px #000;line-height:1;}
 #hitmarker.head{color:#ffd24d;text-shadow:0 0 10px #ff8a00,0 0 3px #000;}
 
-#topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:center;gap:26px;padding:10px 16px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,0));font-size:13px;letter-spacing:2px;}
-.stat{display:flex;flex-direction:column;align-items:center;min-width:78px;}
+#topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:center;gap:22px;padding:10px 16px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,0));font-size:13px;letter-spacing:2px;}
+.stat{display:flex;flex-direction:column;align-items:center;min-width:68px;}
 .stat .lbl{font-size:9px;opacity:.6;letter-spacing:3px;color:var(--verde2);}
 .stat span:last-child{font-size:17px;font-weight:bold;color:#fff;text-shadow:0 0 6px rgba(61,220,107,.6);}
+#hModo{font-size:14px;letter-spacing:3px;}
+.modoFacil{color:#8dffab !important;text-shadow:0 0 8px rgba(141,255,171,.8) !important;}
+.modoNormal{color:#ffd166 !important;text-shadow:0 0 8px rgba(255,209,102,.8) !important;}
+.modoDificil{color:#ff6b6b !important;text-shadow:0 0 8px rgba(255,107,107,.8) !important;}
 
 #mensaje{position:absolute;left:0;right:0;top:26%;text-align:center;font-size:44px;font-weight:bold;letter-spacing:8px;color:#fff;text-shadow:0 0 18px rgba(61,220,107,.9),0 4px 12px #000;opacity:0;transition:opacity .3s;}
 #submensaje{position:absolute;left:0;right:0;top:36%;text-align:center;font-size:16px;letter-spacing:4px;color:var(--ambar);text-shadow:0 2px 8px #000;opacity:0;transition:opacity .3s;}
@@ -115,7 +119,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #avisoVertical{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:var(--ambar);font-size:16px;letter-spacing:3px;text-align:center;padding:40px;pointer-events:auto;z-index:60;line-height:2;}
 #btnFullscreen{position:absolute;right:12px;top:12px;pointer-events:auto;z-index:40;background:rgba(0,0,0,.5);border:1px solid var(--borde);color:var(--verde);width:40px;height:40px;font-size:17px;border-radius:6px;cursor:pointer;display:none;align-items:center;justify-content:center;font-family:inherit;}
 
-/* --- Botón de pausa (móvil) --- */
 #btnPausa{
   position:absolute;left:12px;top:12px;pointer-events:auto;z-index:45;
   background:rgba(0,0,0,.55);border:1px solid var(--borde);
@@ -127,7 +130,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 }
 #btnPausa:active{transform:scale(.92);background:rgba(61,220,107,.35);}
 
-/* --- Selección de mapa --- */
 .listaMapas{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
@@ -167,7 +169,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 .tarjetaMapa .mDif.normal{color:var(--verde);}
 .tarjetaMapa .mDif.dificil{color:var(--rojo);}
 
-/* --- DESAFÍO MATEMÁTICO --- */
 #quiz{
   gap:14px;
   background:radial-gradient(ellipse at center,rgba(15,30,20,.94) 0%,rgba(0,0,0,.97) 100%);
@@ -281,6 +282,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     </div>
     <div id="scope"><div id="scopeCruz"></div></div>
     <div id="topbar">
+      <div class="stat"><span class="lbl">MODO</span><span id="hModo">FÁCIL</span></div>
       <div class="stat"><span class="lbl">OLEADA</span><span id="hOleada">1</span></div>
       <div class="stat"><span class="lbl">BAJAS</span><span id="hBajas">0</span></div>
       <div class="stat"><span class="lbl">PUNTOS</span><span id="hPuntos">0</span></div>
@@ -323,7 +325,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <div class="subtitulo">COMBATE MODERNO · SUPERVIVENCIA POR OLEADAS</div>
     <div class="panelInstrucciones" id="panelInstrucciones"></div>
     <button id="btnJugar" class="boton">JUGAR</button>
-    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v1.4 · THREE.JS · WEB AUDIO API</div>
+    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v1.8 · THREE.JS · WEB AUDIO API</div>
   </div>
 
   <div id="seleccionMapa" class="pantalla oculto">
@@ -414,27 +416,93 @@ const CONFIG = {
 };
 
 /* ============================================================
+   1b. DIFICULTAD
+   ============================================================ */
+const DIFICULTAD = {
+  facil: {
+    etiqueta: 'FÁCIL',
+    clase: 'modoFacil',
+    vidaMax: 150,
+    regenVel: 45,
+    regenRetardo: 1.5,
+    danoEnemigo: 0.30,
+    cadenciaEnemigo: 2.5,
+    dispersionEnemigo: 3.0,
+    velocidadEnemigo: 0.65,
+    vidaEnemigo: 0.5,
+    cantidadEnemigos: 0.5,
+    reaccionEnemigo: 2.5,
+    alcanceEnemigo: 0.55,
+    pelletsEnemigo: 0.34,
+    distanciaMinSpawn: 20,
+    iFrames: 0.35,
+    graciaInicial: 1.5
+  },
+  normal: {
+    etiqueta: 'NORMAL',
+    clase: 'modoNormal',
+    vidaMax: 100,
+    regenVel: 30,
+    regenRetardo: 4.0,
+    danoEnemigo: 1.0,
+    cadenciaEnemigo: 1.0,
+    dispersionEnemigo: 1.0,
+    velocidadEnemigo: 1.0,
+    vidaEnemigo: 1.0,
+    cantidadEnemigos: 1.0,
+    reaccionEnemigo: 1.0,
+    alcanceEnemigo: 1.0,
+    pelletsEnemigo: 1.0,
+    distanciaMinSpawn: 16,
+    iFrames: 0.15,
+    graciaInicial: 0.8
+  },
+  dificil: {
+    etiqueta: 'DIFÍCIL',
+    clase: 'modoDificil',
+    vidaMax: 90,
+    regenVel: 20,
+    regenRetardo: 5.0,
+    danoEnemigo: 1.3,
+    cadenciaEnemigo: 0.75,
+    dispersionEnemigo: 0.7,
+    velocidadEnemigo: 1.2,
+    vidaEnemigo: 1.4,
+    cantidadEnemigos: 1.35,
+    reaccionEnemigo: 0.65,
+    alcanceEnemigo: 1.2,
+    pelletsEnemigo: 1.3,
+    distanciaMinSpawn: 15,
+    iFrames: 0.05,
+    graciaInicial: 0.3
+  }
+};
+
+let dificultadActual = DIFICULTAD.normal;
+let tiempoJugadorInvulnerable = 0;
+
+/* ============================================================
    2. ARMAS
    ============================================================ */
 const ARMAS = [
   { id:'pistola', nombre:'PISTOLA M9', modo:'semi',
     dano:25, cadencia:4, cargador:12, recarga:1.2,
-    dispersion:0.006, dispMov:0.012, retroceso:0.014, retrocesoVisual:0.055,
+    dispersion:0.006, dispMov:0.012, retroceso:0.005, retrocesoVisual:0.022,
     pellets:1, fovADS:52, bob:1.0, sonido:'pistola' },
 
   { id:'fusil', nombre:'FUSIL DE ASALTO', modo:'auto',
     dano:18, cadencia:11, cargador:30, recarga:2.0,
-    dispersion:0.011, dispMov:0.020, retroceso:0.010, retrocesoVisual:0.038,
+    dispersion:0.011, dispMov:0.020, retroceso:0.0035, retrocesoVisual:0.014,
     pellets:1, fovADS:48, bob:1.0, sonido:'fusil' },
 
   { id:'escopeta', nombre:'ESCOPETA TÁCTICA', modo:'pump',
     dano:8, cadencia:1, cargador:6, recarga:2.5,
-    dispersion:0.062, dispMov:0.075, retroceso:0.040, retrocesoVisual:0.11,
+    dispersion:0.062, dispMov:0.075, retroceso:0.020, retrocesoVisual:0.065,
     pellets:8, fovADS:58, bob:1.2, sonido:'escopeta' },
 
   { id:'francotirador', nombre:'FRANCOTIRADOR AWM', modo:'bolt',
     dano:100, cadencia:0.8, cargador:5, recarga:3.0,
-    dispersion:0.0012, dispMov:0.030, retroceso:0.055, retrocesoVisual:0.14,
+    dispersion:0.0012, dispMov:0.030, retroceso:0.026, retrocesoVisual:0.080,
     pellets:1, fovADS:20, bob:1.3, sonido:'francotirador' }
 ];
 
@@ -607,7 +675,6 @@ const Movil = {
   saltar:false
 };
 
-/* --- Teclado --- */
 window.addEventListener('keydown', e=>{
   if(e.code === 'Escape'){
     if(Estado.fase === 'jugando') pausar();
@@ -626,7 +693,6 @@ window.addEventListener('keydown', e=>{
 });
 window.addEventListener('keyup', e=>{ Input.teclas[e.code] = false; });
 
-/* --- Ratón --- */
 window.addEventListener('mousemove', e=>{
   if(Input.bloquearRaton){
     Input.dx += (e.movementX || 0);
@@ -675,7 +741,6 @@ window.addEventListener('wheel', e=>{
   }
 }, {passive:true});
 
-/* --- Pointer Lock --- */
 const lienzo = document.getElementById('lienzo');
 let intentosLock = 0;
 
@@ -781,7 +846,7 @@ function initEscena(){
    ============================================================ */
 const MAPAS = [
   {
-    id:'urbana', nombre:'ARENA URBANA', dificultad:'NORMAL',
+    id:'urbana', nombre:'ARENA URBANA', dificultad:'NORMAL', nivel:'normal',
     desc:'Zona urbana al atardecer. Cobertura media, combate a media distancia.',
     cielo:['#131f3d','#4a3357','#a04a5a','#e2793f','#f7bb63','#3a2530'],
     fog:{ color:0xc97a4a, near:34, far:118 },
@@ -791,7 +856,7 @@ const MAPAS = [
     construir: construirArenaUrbana
   },
   {
-    id:'almacen', nombre:'ALMACÉN INDUSTRIAL', dificultad:'DIFÍCIL',
+    id:'almacen', nombre:'ALMACÉN INDUSTRIAL', dificultad:'DIFÍCIL', nivel:'dificil',
     desc:'Interior cerrado con contenedores y columnas. Combate muy cercano, poca visibilidad.',
     cielo:['#0a0a12','#0f1018','#151622','#1a1c28','#20222e','#0a0a10'],
     fog:{ color:0x1a1c28, near:10, far:62 },
@@ -801,7 +866,7 @@ const MAPAS = [
     construir: construirAlmacen
   },
   {
-    id:'ruinas', nombre:'RUINAS NOCTURNAS', dificultad:'DIFÍCIL',
+    id:'ruinas', nombre:'RUINAS NOCTURNAS', dificultad:'DIFÍCIL', nivel:'dificil',
     desc:'Ciudad en ruinas bajo la luna. Edificios derruidos, escombros y visibilidad reducida.',
     cielo:['#050510','#0a0a20','#151535','#20204a','#2a2a5a','#101020'],
     fog:{ color:0x1a1a3a, near:18, far:88 },
@@ -811,7 +876,7 @@ const MAPAS = [
     construir: construirRuinas
   },
   {
-    id:'artica', nombre:'BASE ÁRTICA', dificultad:'FÁCIL',
+    id:'artica', nombre:'BASE ÁRTICA', dificultad:'FÁCIL', nivel:'facil',
     desc:'Instalación militar en el hielo. Espacios abiertos y mucha visibilidad.',
     cielo:['#3a5570','#5a7590','#8aa5b8','#b8cad8','#dde8f0','#a8b8c8'],
     fog:{ color:0xc8d8e5, near:40, far:150 },
@@ -819,6 +884,26 @@ const MAPAS = [
     sol:{ color:0xfff0dd, intensity:1.10, pos:[30,60,40] },
     relleno:{ color:0x8899bb, intensity:0.30, pos:[-40,20,-30] },
     construir: construirArtica
+  },
+  {
+    id:'playa', nombre:'PLAYA TROPICAL', dificultad:'FÁCIL', nivel:'facil',
+    desc:'Playa abierta bajo el sol. Palmeras, sombrillas y mucha visibilidad.',
+    cielo:['#2a78b8','#4aa8d8','#7bc8e8','#c8e0e8','#f0e0b8','#d8b888'],
+    fog:{ color:0xe8d8a8, near:50, far:180 },
+    hemi:{ sky:0xa8d8f0, ground:0xd8c090, intensity:1.00 },
+    sol:{ color:0xfff0c0, intensity:1.15, pos:[40,80,20] },
+    relleno:{ color:0x88aacc, intensity:0.35, pos:[-30,20,-30] },
+    construir: construirPlaya
+  },
+  {
+    id:'trigo', nombre:'CAMPO DE TRIGO', dificultad:'FÁCIL', nivel:'facil',
+    desc:'Campo dorado junto a un granero. Visibilidad amplia con cobertura dispersa.',
+    cielo:['#5080c0','#80a8d0','#b8d0e0','#f0d890','#e8b860','#a88040'],
+    fog:{ color:0xe8c888, near:45, far:170 },
+    hemi:{ sky:0xf0e0b0, ground:0xa08040, intensity:0.95 },
+    sol:{ color:0xffe8a0, intensity:1.15, pos:[30,70,-40] },
+    relleno:{ color:0xaab0cc, intensity:0.30, pos:[-40,20,30] },
+    construir: construirTrigo
   }
 ];
 
@@ -1172,6 +1257,124 @@ function construirArtica(){
   }
 }
 
+/* ============================================================
+   MAPA 5 — PLAYA TROPICAL (FÁCIL)
+   ============================================================ */
+function construirPlaya(){
+  const A = CONFIG.ARENA;
+
+  const sueloMat = new THREE.MeshLambertMaterial({ color: 0xf0d8a0 });
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
+  suelo.rotation.x = -Math.PI/2;
+  suelo.receiveShadow = true;
+  mapaGroup.add(suelo);
+
+  for(let x=-A; x<=A; x+=4){
+    agregarCaja(x, 0, -A, 3.5, rand(1.6, 2.6), 1.5, 0x8a8070);
+    agregarCaja(x, 0,  A, 3.5, rand(1.6, 2.6), 1.5, 0x8a8070);
+  }
+  for(let z=-A; z<=A; z+=4){
+    agregarCaja(-A, 0, z, 1.5, rand(1.6, 2.6), 3.5, 0x8a8070);
+    agregarCaja( A, 0, z, 1.5, rand(1.6, 2.6), 3.5, 0x8a8070);
+  }
+
+  for(let i=0; i<10; i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 5) continue;
+    const alto = rand(4.5, 7.5);
+    agregarCaja(x, 0, z, 0.5, alto, 0.5, 0x6b4a2a);
+    agregarCaja(x, alto, z, 3.5, 0.5, 3.5, 0x3a7a3a, {solido:false});
+    agregarCaja(x, alto+0.4, z, 2.6, 0.4, 2.6, 0x4a8a4a, {solido:false});
+  }
+
+  const coloresUmb = [0xff4040, 0x40a0ff, 0xffaa40, 0x40d090];
+  for(let i=0; i<8; i++){
+    const x = rand(-22, 22), z = rand(-22, 22);
+    if(Math.hypot(x, z) < 5) continue;
+    agregarCaja(x, 0, z, 0.18, 2.4, 0.18, 0xaaaaaa);
+    agregarCaja(x, 2.4, z, 3.4, 0.28, 3.4, coloresUmb[i % coloresUmb.length], {solido:false});
+  }
+
+  for(let i=0; i<20; i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(0.8, 2.0);
+    agregarCaja(x, 0, z, s, s*0.7, s, 0x8a8070);
+  }
+
+  for(let i=0; i<8; i++){
+    const x = rand(-22, 22), z = rand(-22, 22);
+    if(Math.hypot(x, z) < 5) continue;
+    const s = rand(1.2, 2.0);
+    agregarCaja(x, 0, z, s, s, s, 0xa07850);
+  }
+
+  for(let i=0; i<10; i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 4) continue;
+    agregarCaja(x, 0, z, 1.0, 1.6, 1.0, 0x8a5a2a);
+  }
+}
+
+/* ============================================================
+   MAPA 6 — CAMPO DE TRIGO (FÁCIL)
+   ============================================================ */
+function construirTrigo(){
+  const A = CONFIG.ARENA;
+
+  const sueloMat = new THREE.MeshLambertMaterial({ color: 0xd8b060 });
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
+  suelo.rotation.x = -Math.PI/2;
+  suelo.receiveShadow = true;
+  mapaGroup.add(suelo);
+
+  for(let x=-A; x<=A; x+=3){
+    agregarCaja(x, 0, -A, 0.25, 1.4, 0.25, 0x6b4a2a);
+    agregarCaja(x, 0,  A, 0.25, 1.4, 0.25, 0x6b4a2a);
+  }
+  for(let z=-A; z<=A; z+=3){
+    agregarCaja(-A, 0, z, 0.25, 1.4, 0.25, 0x6b4a2a);
+    agregarCaja( A, 0, z, 0.25, 1.4, 0.25, 0x6b4a2a);
+  }
+
+  agregarCaja(-18, 0, -18, 10, 6, 8, 0x8a2a2a);
+  agregarCaja(-18, 6, -18, 11, 0.5, 9, 0x5a1a1a, {solido:false});
+  agregarCaja(-18, 0, -14.05, 3, 4, 0.2, 0x3a1a1a, {solido:false});
+  agregarCaja(-18, 4.2, -14.05, 3.2, 0.3, 0.25, 0xc8a030, {solido:false});
+
+  agregarCaja(20, 0, -20, 4, 12, 4, 0x888888);
+  agregarCaja(20, 12, -20, 4.5, 0.4, 4.5, 0x666666, {solido:false});
+
+  for(let i=0; i<14; i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 5) continue;
+    const horiz = Math.random() > 0.5;
+    const w = horiz ? 2.4 : 1.6;
+    const d = horiz ? 1.6 : 2.4;
+    agregarCaja(x, 0, z, w, 1.5, d, 0xd8b040);
+    if(Math.random() > 0.55){
+      agregarCaja(x, 1.5, z, w, 1.5, d, 0xc8a030);
+    }
+  }
+
+  for(let i=0; i<6; i++){
+    const x = rand(-22, 22), z = rand(-22, 22);
+    if(Math.hypot(x, z) < 5) continue;
+    agregarCaja(x, 0, z, 0.6, 4, 0.6, 0x5a3a1a);
+    agregarCaja(x, 4, z, 3.5, 0.6, 3.5, 0x4a7a3a, {solido:false});
+    agregarCaja(x, 4.6, z, 2.5, 0.5, 2.5, 0x5a8a4a, {solido:false});
+  }
+
+  for(let i=0; i<10; i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 5) continue;
+    const horiz = Math.random() > 0.5;
+    const w = horiz ? 3 : 0.3;
+    const d = horiz ? 0.3 : 3;
+    agregarCaja(x, 0, z, w, 1.2, d, 0x6b4a2a);
+  }
+}
+
 /* ---- Cielo dinámico ---- */
 function crearCielo(colores){
   if(cieloMesh){
@@ -1297,6 +1500,7 @@ function reiniciarJugador(){
   Input.dx = 0; Input.dy = 0;
   camara.fov = CONFIG.FOV_BASE;
   camara.updateProjectionMatrix();
+  ultimoHUD.vida = -1;
 }
 
 function resolverColision(pos, radio, altura){
@@ -1436,7 +1640,7 @@ function actualizarViewModel(dt){
   const bobY = -Math.abs(Math.cos(Jugador.bobT)) * 0.014 * factorBob;
 
   const rec = Jugador.retrocesoVisual || 0;
-  Jugador.retrocesoVisual = Math.max(0, rec - dt * 4.5);
+  Jugador.retrocesoVisual = Math.max(0, rec - dt * 5.5);
 
   let recAngX = 0, recPosY = 0, recPosZ = 0;
   if(Jugador.recargando){
@@ -1537,8 +1741,9 @@ function dispararJugador(){
   Jugador.pitch += arma.retroceso * rand(0.75, 1.25);
   Jugador.yaw   += arma.retroceso * rand(-0.35, 0.35);
   Jugador.retrocesoVisual = arma.retrocesoVisual;
-  Jugador.shakeT = 0.09;
-  Jugador.shakeMag = arma.retroceso * 0.45;
+
+  Jugador.shakeT = 0.06;
+  Jugador.shakeMag = arma.retroceso * 0.18;
 
   const origen = camara.getWorldPosition(_v1).clone();
   const dirBase = camara.getWorldDirection(_v2).clone();
@@ -1631,9 +1836,29 @@ const TIPOS_ENEMIGO = {
 };
 
 const enemigos = [];
+let haloMuertos = [];
 
 function Enemigo(tipo, pos){
-  const def = TIPOS_ENEMIGO[tipo];
+  const defBase = TIPOS_ENEMIGO[tipo];
+  const D = dificultadActual;
+
+  const def = {
+    nombre: defBase.nombre,
+    vida: Math.max(20, Math.round(defBase.vida * D.vidaEnemigo)),
+    vel: defBase.vel * D.velocidadEnemigo,
+    dano: defBase.dano * D.danoEnemigo,
+    cadencia: defBase.cadencia / D.cadenciaEnemigo,
+    reaccion: defBase.reaccion * D.reaccionEnemigo,
+    dispersion: defBase.dispersion * D.dispersionEnemigo,
+    color: defBase.color,
+    cabeza: defBase.cabeza,
+    escala: defBase.escala,
+    pellets: Math.max(1, Math.round(defBase.pellets * D.pelletsEnemigo)),
+    alcance: defBase.alcance * D.alcanceEnemigo,
+    distanciaPref: defBase.distanciaPref,
+    puntos: defBase.puntos
+  };
+
   this.tipo = tipo;
   this.def = def;
   this.vida = def.vida;
@@ -1643,7 +1868,7 @@ function Enemigo(tipo, pos){
   this.tMuerte = 0;
   this.estado = 'patrulla';
   this.tEstado = 0;
-  this.tDisparo = rand(0.6, 1.6);
+  this.tDisparo = rand(0.6, 1.6) * D.reaccionEnemigo;
   this.tLOS = rand(0, 0.25);
   this.veJugador = false;
   this.tReaccion = 0;
@@ -1655,6 +1880,10 @@ function Enemigo(tipo, pos){
 
   const s = def.escala;
   const g = new THREE.Group();
+
+  // === IMPORTANTE: materiales OPACOS al nacer (sin transparent) ===
+  // Solo se volverán transparentes al morir, y en ese momento se activará
+  // depthWrite=false para no ocultar a otros enemigos detrás.
   const matCuerpo = new THREE.MeshLambertMaterial({ color: def.color });
   const matCabeza = new THREE.MeshLambertMaterial({ color: def.cabeza });
   const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
@@ -1682,6 +1911,43 @@ function Enemigo(tipo, pos){
   casco.userData = { enemigo:this, parte:'cabeza' };
   g.add(casco);
 
+  // Visor rojo (frente)
+  const visorMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.20*s, 0.06*s, 0.03*s), visorMat);
+  visor.position.set(0, 1.72*s, 0.16*s);
+  visor.userData = { enemigo:this, parte:'cabeza' };
+  g.add(visor);
+  this.materiales.push(visorMat);
+
+  // Emblema rojo (pecho)
+  const emblemaMat = new THREE.MeshBasicMaterial({ color: 0xff3333 });
+  const emblema = new THREE.Mesh(new THREE.BoxGeometry(0.20*s, 0.20*s, 0.03*s), emblemaMat);
+  emblema.position.set(0, 1.22*s, 0.21*s);
+  emblema.userData = { enemigo:this, parte:'cuerpo' };
+  g.add(emblema);
+  this.materiales.push(emblemaMat);
+
+  // Mochila (espaldas)
+  const mochilaMat = new THREE.MeshLambertMaterial({ color: 0x18181c });
+  const mochila = new THREE.Mesh(new THREE.BoxGeometry(0.44*s, 0.52*s, 0.22*s), mochilaMat);
+  mochila.position.set(0, 1.18*s, -0.28*s);
+  mochila.userData = { enemigo:this, parte:'cuerpo' };
+  g.add(mochila);
+  this.materiales.push(mochilaMat);
+
+  // Rayas blancas en mochila
+  const rayaMat = new THREE.MeshBasicMaterial({ color: 0xdcdcdc });
+  const raya1 = new THREE.Mesh(new THREE.BoxGeometry(0.05*s, 0.42*s, 0.02*s), rayaMat);
+  raya1.position.set(-0.10*s, 1.18*s, -0.40*s);
+  raya1.userData = { enemigo:this, parte:'cuerpo' };
+  g.add(raya1);
+  this.materiales.push(rayaMat);
+
+  const raya2 = new THREE.Mesh(new THREE.BoxGeometry(0.05*s, 0.42*s, 0.02*s), rayaMat);
+  raya2.position.set( 0.10*s, 1.18*s, -0.40*s);
+  raya2.userData = { enemigo:this, parte:'cuerpo' };
+  g.add(raya2);
+
   this.piernaIzq = new THREE.Mesh(new THREE.BoxGeometry(0.20*s, 0.72*s, 0.22*s), matOscuro);
   this.piernaIzq.position.set(-0.16*s, 0.36*s, 0);
   this.piernaIzq.userData = { enemigo:this, parte:'cuerpo' };
@@ -1703,7 +1969,7 @@ function Enemigo(tipo, pos){
   g.add(brazoDer);
 
   const arma = new THREE.Mesh(new THREE.BoxGeometry(0.09*s, 0.11*s, 0.72*s), matOscuro);
-  arma.position.set(0.30*s, 1.20*s, -0.42*s);
+  arma.position.set(0.30*s, 1.20*s, 0.42*s);
   arma.userData = { enemigo:this, parte:'cuerpo' };
   g.add(arma);
 
@@ -1729,10 +1995,41 @@ Enemigo.prototype.morir = function(esCabeza){
   this.muerto = true;
   this.tMuerte = 0;
   this.estado = 'muerto';
+
+  // === FIX PRINCIPAL ===
+  // Convertir materiales a transparentes AHORA (no antes) y deshabilitar
+  // depthWrite para que el fade-out no oculte a otros enemigos detrás.
+  for(let i=0;i<this.materiales.length;i++){
+    const m = this.materiales[i];
+    m.transparent = true;
+    m.depthWrite = false;
+    m.opacity = 1.0;
+    m.needsUpdate = true;
+  }
+
+  // Deshabilitar raycast de los meshes para que no bloqueen disparos
+  this.grupo.traverse(function(o){
+    if(o.isMesh){
+      o.raycast = function(){};
+    }
+  });
+
+  // Halo verde temporal en el suelo (marca visual de "muerto")
+  const haloGeo = new THREE.RingGeometry(0.35, 0.55, 16);
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: 0x33ff88, transparent: true, opacity: 0.85,
+    side: THREE.DoubleSide, depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  halo.rotation.x = -Math.PI/2;
+  halo.position.set(this.grupo.position.x, 0.05, this.grupo.position.z);
+  escena.add(halo);
+  haloMuertos.push({ mesh: halo, vida: 1.4, maxVida: 1.4 });
+
   const base = this.def.puntos;
   Estado.bajas++;
   Estado.puntos += base + (esCabeza ? 50 : 0);
-  for(let i=0;i<this.materiales.length;i++) this.materiales[i].transparent = true;
   Audio3D.baja();
   actualizarHUDStats();
 };
@@ -1895,6 +2192,7 @@ Enemigo.prototype.comprobarLOS = function(dist){
   dir.divideScalar(len);
   raycaster.set(origen, dir);
   raycaster.far = len - 0.4;
+  // Comprobamos solo contra el mapa (no contra enemigos ni cadáveres)
   const hits = raycaster.intersectObjects(mapaGroup.children, false);
   return hits.length === 0;
 };
@@ -2010,6 +2308,14 @@ function limpiarEfectos(){
     partPosiciones[i*3+1] = -9999;
   }
   if(sistemaPart) sistemaPart.geometry.attributes.position.needsUpdate = true;
+
+  // Limpiar halos de muertos
+  for(let i=0;i<haloMuertos.length;i++){
+    escena.remove(haloMuertos[i].mesh);
+    haloMuertos[i].mesh.geometry.dispose();
+    haloMuertos[i].mesh.material.dispose();
+  }
+  haloMuertos.length = 0;
 }
 
 function crearTrazadora(desde, hasta, color){
@@ -2052,6 +2358,21 @@ function actualizarEfectos(dt){
       t.vida -= dt;
       t.mesh.material.opacity = Math.max(0, t.vida / t.maxVida) * 0.9;
       if(t.vida <= 0) t.mesh.visible = false;
+    }
+  }
+
+  // Halos de muertos
+  for(let i=haloMuertos.length-1; i>=0; i--){
+    const h = haloMuertos[i];
+    h.vida -= dt;
+    const a = clamp(h.vida / h.maxVida, 0, 1);
+    h.mesh.material.opacity = a * 0.85;
+    h.mesh.scale.setScalar(1 + (1-a) * 0.6);
+    if(h.vida <= 0){
+      escena.remove(h.mesh);
+      h.mesh.geometry.dispose();
+      h.mesh.material.dispose();
+      haloMuertos.splice(i,1);
     }
   }
 
@@ -2101,6 +2422,10 @@ function mostrarHitmarker(esCabeza){
    ============================================================ */
 function recibirDanoJugador(dmg){
   if(!Jugador.vivo) return;
+  if(tiempoJugadorInvulnerable > 0) return;
+
+  tiempoJugadorInvulnerable = dificultadActual.iFrames;
+
   Jugador.vida -= dmg;
   Jugador.tDano = 0;
   flashDanoT = 0.35;
@@ -2133,7 +2458,6 @@ const Estado = {
 
 let mapaSeleccionado = 0;
 
-/* --- Botón de pausa visible sólo en móvil durante la partida --- */
 function actualizarBotonPausa(){
   const btn = document.getElementById('btnPausa');
   if(!btn) return;
@@ -2149,6 +2473,12 @@ function iniciarPartida(){
   limpiarEfectos();
 
   const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
+
+  dificultadActual = DIFICULTAD[mapa.nivel] || DIFICULTAD.normal;
+  CONFIG.VIDA_MAX = dificultadActual.vidaMax;
+  CONFIG.REGEN_RETARDO = dificultadActual.regenRetardo;
+  CONFIG.REGEN_VEL = dificultadActual.regenVel;
+
   aplicarEntornoMapa(mapa);
   mapa.construir();
 
@@ -2156,6 +2486,8 @@ function iniciarPartida(){
   enemigos.length = 0;
 
   reiniciarJugador();
+  tiempoJugadorInvulnerable = dificultadActual.graciaInicial;
+
   Estado.oleada = 0;
   Estado.bajas = 0;
   Estado.puntos = 0;
@@ -2229,7 +2561,8 @@ function terminarPartida(){
 
 function iniciarOleada(n){
   Estado.oleada = n;
-  const cantidad = CONFIG.OLEADA_BASE + (n - 1) * CONFIG.OLEADA_INCREMENTO;
+  const cantidadBase = CONFIG.OLEADA_BASE + (n - 1) * CONFIG.OLEADA_INCREMENTO;
+  const cantidad = Math.max(3, Math.round(cantidadBase * dificultadActual.cantidadEnemigos));
   Estado.colaSpawn = [];
 
   for(let i=0;i<cantidad;i++){
@@ -2252,13 +2585,14 @@ function iniciarOleada(n){
 }
 
 function posicionSpawnValida(){
+  const distanciaMin = dificultadActual.distanciaMinSpawn;
   for(let intento=0; intento<50; intento++){
     const a = Math.random() * Math.PI * 2;
     const r = rand(17, 26);
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
     if(Math.hypot(x, z) > CONFIG.ARENA - 3) continue;
-    if(Math.hypot(x - Jugador.pos.x, z - Jugador.pos.z) < 16) continue;
+    if(Math.hypot(x - Jugador.pos.x, z - Jugador.pos.z) < distanciaMin) continue;
     let libre = true;
     for(let i=0;i<colisionadores.length;i++){
       const c = colisionadores[i];
@@ -2277,7 +2611,7 @@ function actualizarOleadas(dt){
       const tipo = Estado.colaSpawn.shift();
       const pos = posicionSpawnValida();
       enemigos.push(new Enemigo(tipo, pos));
-      Estado.tSpawn = rand(0.35, 0.9);
+      Estado.tSpawn = rand(0.35, 0.9) + (dificultadActual.cantidadEnemigos < 1 ? 0.5 : 0);
       actualizarHUDStats();
     }
   }
@@ -2540,6 +2874,12 @@ function actualizarHUDStats(){
   document.getElementById('hBajas').textContent = Estado.bajas;
   document.getElementById('hPuntos').textContent = Estado.puntos;
   document.getElementById('hRestantes').textContent = Estado.enemigosRestantes;
+
+  const elModo = document.getElementById('hModo');
+  if(elModo){
+    elModo.textContent = dificultadActual.etiqueta;
+    elModo.className = dificultadActual.clase;
+  }
 }
 
 function actualizarHUDArma(){
@@ -2559,6 +2899,9 @@ function actualizarHUDMunicion(){
    ============================================================ */
 function actualizarJugador(dt){
   const J = Jugador;
+
+  if(tiempoJugadorInvulnerable > 0) tiempoJugadorInvulnerable -= dt;
+
   if(!J.vivo) return;
 
   if(!ES_MOVIL){
@@ -2888,6 +3231,18 @@ function construirInstrucciones(){
        +    '<span><b>✖️ DESAFÍO MATEMÁTICO</b></span>'
        +    '<span>5 multiplicaciones al final de cada oleada</span>'
        +  '</div>';
+  html += '<div class="fila" style="border-top:1px solid rgba(141,255,171,.2);padding-top:8px">'
+       +    '<span><b>👀 ENEMIGOS</b></span>'
+       +    '<span>Visor rojo = te ve · Mochila = de espaldas</span>'
+       +  '</div>';
+  html += '<div class="fila" style="border-top:1px solid rgba(141,255,171,.2);padding-top:8px">'
+       +    '<span><b>🎚️ MODO FÁCIL</b></span>'
+       +    '<span>Playas, Trigo y Base Ártica son más relajados</span>'
+       +  '</div>';
+  html += '<div class="fila" style="border-top:1px solid rgba(141,255,171,.2);padding-top:8px">'
+       +    '<span><b>💀 ENEMIGO ELIMINADO</b></span>'
+       +    '<span>Halo verde en el suelo = ya no dispara</span>'
+       +  '</div>';
   cont.innerHTML = html;
 }
 
@@ -2980,7 +3335,6 @@ function init(){
   document.getElementById('btnReintentar').addEventListener('click', function(){ iniciarPartida(); });
   document.getElementById('btnCambiarMapa').addEventListener('click', function(){ mostrarSeleccionMapa(); });
 
-  // Botón de pausa (móvil)
   const btnPausa = document.getElementById('btnPausa');
   function manejarPausa(ev){
     if(ev){ ev.preventDefault(); ev.stopPropagation(); }
