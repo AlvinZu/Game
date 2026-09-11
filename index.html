@@ -70,12 +70,55 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #vignette{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 35%,rgba(180,0,0,.85) 100%);transition:opacity .18s linear;}
 #danoFlash{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,40,40,.25) 0%,rgba(255,0,0,.6) 100%);}
 
-#scope{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .12s;background:radial-gradient(circle at center,rgba(0,0,0,0) 26%,rgba(0,0,0,.97) 31%);}
+/* ==========================================
+   FRANCOTIRADOR — VISIBILIDAD MEJORADA
+   ========================================== */
+#scope{
+  position:absolute;inset:0;pointer-events:none;
+  opacity:0;transition:opacity .12s;
+  background:radial-gradient(circle at center,
+    rgba(0,0,0,0) 0%,
+    rgba(0,0,0,0) 42%,
+    rgba(0,0,0,.55) 47%,
+    rgba(0,0,0,.90) 54%,
+    rgba(0,0,0,.98) 100%);
+}
 #scope.activa{opacity:1;}
-#scope::before,#scope::after{content:"";position:absolute;background:rgba(0,0,0,.85);}
-#scope::before{left:50%;top:0;bottom:0;width:1px;margin-left:-.5px;}
-#scope::after{top:50%;left:0;right:0;height:1px;margin-top:-.5px;}
-#scopeCruz{position:absolute;left:50%;top:50%;width:200px;height:200px;transform:translate(-50%,-50%);border:1px solid rgba(141,255,171,.25);border-radius:50%;}
+
+#scope::before,#scope::after{
+  content:"";
+  position:absolute;
+  background:rgba(141,255,171,.88);
+  box-shadow:0 0 4px rgba(141,255,171,.75),0 0 1px #000;
+}
+#scope::before{
+  left:50%;top:50%;
+  width:80%;height:1.5px;
+  margin-left:-40%;margin-top:-.75px;
+}
+#scope::after{
+  left:50%;top:50%;
+  width:1.5px;height:80%;
+  margin-left:-.75px;margin-top:-40%;
+}
+
+#scopeCruz{
+  position:absolute;left:50%;top:50%;
+  width:min(65vw,95vh);height:min(65vw,95vh);
+  transform:translate(-50%,-50%);
+  border:1px solid rgba(141,255,171,.32);
+  border-radius:50%;
+  box-shadow:inset 0 0 30px rgba(0,0,0,.35);
+}
+
+#scopeDot{
+  position:absolute;left:50%;top:50%;
+  width:6px;height:6px;
+  margin-left:-3px;margin-top:-3px;
+  background:#ff3030;
+  border-radius:50%;
+  box-shadow:0 0 6px #ff3030,0 0 14px rgba(255,48,48,.75),0 0 1px #000;
+}
 
 #mouseHint{
   position:absolute;left:50%;top:14px;transform:translateX(-50%);
@@ -116,6 +159,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #btnRecargar{width:64px;height:64px;right:26px;bottom:28px;}
 #btnArma{width:58px;height:58px;right:132px;bottom:126px;font-size:10px;}
 #btnApuntar{width:64px;height:64px;right:206px;bottom:60px;}
+#btnApuntar.activo{background:rgba(61,220,107,.55);border-color:#8dffab;box-shadow:0 0 14px rgba(141,255,171,.65);color:#fff;}
 #avisoVertical{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:var(--ambar);font-size:16px;letter-spacing:3px;text-align:center;padding:40px;pointer-events:auto;z-index:60;line-height:2;}
 #btnFullscreen{position:absolute;right:12px;top:12px;pointer-events:auto;z-index:40;background:rgba(0,0,0,.5);border:1px solid var(--borde);color:var(--verde);width:40px;height:40px;font-size:17px;border-radius:6px;cursor:pointer;display:none;align-items:center;justify-content:center;font-family:inherit;}
 
@@ -280,7 +324,10 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
       <div class="ch-dot"></div>
       <div id="hitmarker">✕</div>
     </div>
-    <div id="scope"><div id="scopeCruz"></div></div>
+    <div id="scope">
+      <div id="scopeCruz"></div>
+      <div id="scopeDot"></div>
+    </div>
     <div id="topbar">
       <div class="stat"><span class="lbl">MODO</span><span id="hModo">FÁCIL</span></div>
       <div class="stat"><span class="lbl">OLEADA</span><span id="hOleada">1</span></div>
@@ -325,7 +372,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <div class="subtitulo">COMBATE MODERNO · SUPERVIVENCIA POR OLEADAS</div>
     <div class="panelInstrucciones" id="panelInstrucciones"></div>
     <button id="btnJugar" class="boton">JUGAR</button>
-    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v1.8 · THREE.JS · WEB AUDIO API</div>
+    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v2.0 · THREE.JS · WEB AUDIO API</div>
   </div>
 
   <div id="seleccionMapa" class="pantalla oculto">
@@ -423,20 +470,20 @@ const DIFICULTAD = {
     etiqueta: 'FÁCIL',
     clase: 'modoFacil',
     vidaMax: 150,
-    regenVel: 45,
-    regenRetardo: 1.5,
-    danoEnemigo: 0.30,
-    cadenciaEnemigo: 2.5,
-    dispersionEnemigo: 3.0,
-    velocidadEnemigo: 0.65,
-    vidaEnemigo: 0.5,
-    cantidadEnemigos: 0.5,
-    reaccionEnemigo: 2.5,
-    alcanceEnemigo: 0.55,
-    pelletsEnemigo: 0.34,
-    distanciaMinSpawn: 20,
-    iFrames: 0.35,
-    graciaInicial: 1.5
+    regenVel: 40,
+    regenRetardo: 1.8,
+    danoEnemigo: 0.55,
+    cadenciaEnemigo: 1.9,
+    dispersionEnemigo: 2.5,
+    velocidadEnemigo: 0.70,
+    vidaEnemigo: 0.55,
+    cantidadEnemigos: 0.55,
+    reaccionEnemigo: 2.0,
+    alcanceEnemigo: 0.65,
+    pelletsEnemigo: 0.40,
+    distanciaMinSpawn: 18,
+    iFrames: 0.22,
+    graciaInicial: 1.2
   },
   normal: {
     etiqueta: 'NORMAL',
@@ -671,7 +718,8 @@ const Movil = {
   joyX:0, joyY:0, activo:false,
   idJoystick:null, idMirar:null,
   centroX:0, centroY:0, ultimoX:0, ultimoY:0,
-  disparando:false, apuntando:false,
+  disparando:false,
+  apuntando:false,       // ← TOGGLE: se activa/desactiva con cada toque
   saltar:false
 };
 
@@ -784,6 +832,31 @@ function actualizarAvisoRaton(){
   } else {
     hint.classList.remove('activo');
   }
+}
+
+/* ============================================================
+   4b. TOGGLE DE MIRA (móvil + cambio de arma)
+   ============================================================ */
+function toggleAim(){
+  Movil.apuntando = !Movil.apuntando;
+  actualizarBotonApuntar();
+  // pequeño feedback sonoro
+  Audio3D.tono(Movil.apuntando ? 900 : 500, 0.05, 0.05, 'square', Movil.apuntando ? 1200 : 350);
+}
+
+function actualizarBotonApuntar(){
+  const btn = document.getElementById('btnApuntar');
+  if(!btn) return;
+  if(Movil.apuntando){
+    btn.classList.add('activo');
+  } else {
+    btn.classList.remove('activo');
+  }
+}
+
+function resetAim(){
+  Movil.apuntando = false;
+  actualizarBotonApuntar();
 }
 
 /* ============================================================
@@ -1633,6 +1706,18 @@ function actualizarViewModel(dt){
     camara.updateProjectionMatrix();
   }
 
+  // 🎯 Si es francotirador y está apuntando, ocultamos el viewmodel
+  const usandoScope = (arma.id === 'francotirador' && Jugador.adsT > 0.65);
+  vm.visible = !usandoScope;
+  if(usandoScope){
+    // resetear posiciones residuales del muzzle flash
+    if(vm.userData && vm.userData.flash){
+      vm.userData.flash.material.opacity = 0;
+      vm.userData.halo.material.opacity = 0;
+    }
+    return;
+  }
+
   const velH = Math.hypot(Jugador.vel.x, Jugador.vel.z);
   const factorBob = clamp(velH / CONFIG.VEL_CAMINAR, 0, 1.35) * arma.bob * (1 - Jugador.adsT*0.85);
   Jugador.bobT += dt * (6 + velH * 1.1);
@@ -1690,6 +1775,9 @@ function cambiarArma(idx){
   Jugador.cadenciaT = Math.max(Jugador.cadenciaT, 0.22);
   Audio3D.tono(600, 0.05, 0.07, 'square', 900);
   actualizarHUDArma();
+  // 🎯 El estado de apuntado (Movil.apuntando / ratón) se mantiene al cambiar de arma.
+  //    Sólo reseteamos el temporizador visual ADS suavemente:
+  // (no tocamos adsT para que la transición sea suave)
 }
 
 function intentarRecargar(){
@@ -1881,9 +1969,6 @@ function Enemigo(tipo, pos){
   const s = def.escala;
   const g = new THREE.Group();
 
-  // === IMPORTANTE: materiales OPACOS al nacer (sin transparent) ===
-  // Solo se volverán transparentes al morir, y en ese momento se activará
-  // depthWrite=false para no ocultar a otros enemigos detrás.
   const matCuerpo = new THREE.MeshLambertMaterial({ color: def.color });
   const matCabeza = new THREE.MeshLambertMaterial({ color: def.cabeza });
   const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
@@ -1911,7 +1996,6 @@ function Enemigo(tipo, pos){
   casco.userData = { enemigo:this, parte:'cabeza' };
   g.add(casco);
 
-  // Visor rojo (frente)
   const visorMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.20*s, 0.06*s, 0.03*s), visorMat);
   visor.position.set(0, 1.72*s, 0.16*s);
@@ -1919,7 +2003,6 @@ function Enemigo(tipo, pos){
   g.add(visor);
   this.materiales.push(visorMat);
 
-  // Emblema rojo (pecho)
   const emblemaMat = new THREE.MeshBasicMaterial({ color: 0xff3333 });
   const emblema = new THREE.Mesh(new THREE.BoxGeometry(0.20*s, 0.20*s, 0.03*s), emblemaMat);
   emblema.position.set(0, 1.22*s, 0.21*s);
@@ -1927,7 +2010,6 @@ function Enemigo(tipo, pos){
   g.add(emblema);
   this.materiales.push(emblemaMat);
 
-  // Mochila (espaldas)
   const mochilaMat = new THREE.MeshLambertMaterial({ color: 0x18181c });
   const mochila = new THREE.Mesh(new THREE.BoxGeometry(0.44*s, 0.52*s, 0.22*s), mochilaMat);
   mochila.position.set(0, 1.18*s, -0.28*s);
@@ -1935,7 +2017,6 @@ function Enemigo(tipo, pos){
   g.add(mochila);
   this.materiales.push(mochilaMat);
 
-  // Rayas blancas en mochila
   const rayaMat = new THREE.MeshBasicMaterial({ color: 0xdcdcdc });
   const raya1 = new THREE.Mesh(new THREE.BoxGeometry(0.05*s, 0.42*s, 0.02*s), rayaMat);
   raya1.position.set(-0.10*s, 1.18*s, -0.40*s);
@@ -1996,9 +2077,6 @@ Enemigo.prototype.morir = function(esCabeza){
   this.tMuerte = 0;
   this.estado = 'muerto';
 
-  // === FIX PRINCIPAL ===
-  // Convertir materiales a transparentes AHORA (no antes) y deshabilitar
-  // depthWrite para que el fade-out no oculte a otros enemigos detrás.
   for(let i=0;i<this.materiales.length;i++){
     const m = this.materiales[i];
     m.transparent = true;
@@ -2007,14 +2085,10 @@ Enemigo.prototype.morir = function(esCabeza){
     m.needsUpdate = true;
   }
 
-  // Deshabilitar raycast de los meshes para que no bloqueen disparos
   this.grupo.traverse(function(o){
-    if(o.isMesh){
-      o.raycast = function(){};
-    }
+    if(o.isMesh) o.raycast = function(){};
   });
 
-  // Halo verde temporal en el suelo (marca visual de "muerto")
   const haloGeo = new THREE.RingGeometry(0.35, 0.55, 16);
   const haloMat = new THREE.MeshBasicMaterial({
     color: 0x33ff88, transparent: true, opacity: 0.85,
@@ -2192,7 +2266,6 @@ Enemigo.prototype.comprobarLOS = function(dist){
   dir.divideScalar(len);
   raycaster.set(origen, dir);
   raycaster.far = len - 0.4;
-  // Comprobamos solo contra el mapa (no contra enemigos ni cadáveres)
   const hits = raycaster.intersectObjects(mapaGroup.children, false);
   return hits.length === 0;
 };
@@ -2309,7 +2382,6 @@ function limpiarEfectos(){
   }
   if(sistemaPart) sistemaPart.geometry.attributes.position.needsUpdate = true;
 
-  // Limpiar halos de muertos
   for(let i=0;i<haloMuertos.length;i++){
     escena.remove(haloMuertos[i].mesh);
     haloMuertos[i].mesh.geometry.dispose();
@@ -2361,7 +2433,6 @@ function actualizarEfectos(dt){
     }
   }
 
-  // Halos de muertos
   for(let i=haloMuertos.length-1; i>=0; i--){
     const h = haloMuertos[i];
     h.vida -= dt;
@@ -2487,6 +2558,7 @@ function iniciarPartida(){
 
   reiniciarJugador();
   tiempoJugadorInvulnerable = dificultadActual.graciaInicial;
+  resetAim();
 
   Estado.oleada = 0;
   Estado.bajas = 0;
@@ -2528,7 +2600,10 @@ function pausar(){
   document.getElementById('crosshair').classList.remove('activa');
   Input.ratonIzq = false; Input.ratonDer = false;
   Input.arrastre = false;
-  Movil.disparando = false; Movil.apuntando = false;
+  Movil.disparando = false;
+  // No reseteamos Movil.apuntando para mantener el estado de mira,
+  // pero sí desactivamos el scope visual
+  document.getElementById('scope').classList.remove('activa');
   actualizarAvisoRaton();
   actualizarBotonPausa();
   if(document.pointerLockElement) document.exitPointerLock();
@@ -2549,6 +2624,7 @@ function terminarPartida(){
   Estado.fase = 'gameover';
   document.getElementById('crosshair').classList.remove('activa');
   document.getElementById('scope').classList.remove('activa');
+  resetAim();
   document.getElementById('goBajas').textContent = Estado.bajas;
   document.getElementById('goOleada').textContent = Estado.oleada;
   document.getElementById('goPuntos').textContent = Estado.puntos;
@@ -2723,10 +2799,10 @@ function iniciarQuiz(){
   Input.ratonDer = false;
   Input.arrastre = false;
   Movil.disparando = false;
-  Movil.apuntando = false;
   Movil.saltar = false;
   Movil.joyX = 0;
   Movil.joyY = 0;
+  resetAim();  // apagar la mira al entrar al quiz
 
   Estado.fase = 'quiz';
   document.getElementById('crosshair').classList.remove('activa');
@@ -3181,6 +3257,7 @@ function initControlesMoviles(){
     el.addEventListener('pointerleave', soltar);
   }
 
+  // Botones "hold" (se mantienen mientras pulsas)
   enlazarBoton('btnDisparar',
     function(){ Movil.disparando = true; },
     function(){ Movil.disparando = false; });
@@ -3190,9 +3267,17 @@ function initControlesMoviles(){
     function(){ intentarRecargar(); }, null);
   enlazarBoton('btnArma',
     function(){ cambiarArma((Jugador.armaIdx + 1) % ARMAS.length); }, null);
-  enlazarBoton('btnApuntar',
-    function(){ Movil.apuntando = true; },
-    function(){ Movil.apuntando = false; });
+
+  // 🎯 Botón MIRA → modo TOGGLE (un toque activa, otro desactiva)
+  const btnApuntar = document.getElementById('btnApuntar');
+  btnApuntar.addEventListener('pointerdown', function(ev){
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(Estado.fase !== 'jugando') return;
+    toggleAim();
+  }, {passive:false});
+  // Evitar el click fantasma que dispararía dos veces
+  btnApuntar.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); });
 }
 
 /* ============================================================
@@ -3206,7 +3291,7 @@ function construirInstrucciones(){
     ['Botón FUEGO', 'Disparar'],
     ['Botón SALTAR', 'Saltar'],
     ['Botón RECARGAR', 'Recargar'],
-    ['Botón MIRA', 'Apuntar (ADS)'],
+    ['Botón MIRA', 'Toque = apuntar / quitar mira'],
     ['Botón ARMA', 'Cambiar de arma'],
     ['❚❚ (arriba izq.)', 'Pausar el juego'],
     ['⛶ (arriba dcha.)', 'Pantalla completa']
