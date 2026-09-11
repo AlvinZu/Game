@@ -8,13 +8,13 @@
 <title>OPERACIÓN ARENA — FPS</title>
 
 <link rel="icon" type="image/png" href="icon-192x192.jpg">
-    <link rel="apple-touch-icon" href="icon-180x180.jpg">
-    <link rel="apple-touch-icon" sizes="152x152" href="icon-152x152.jpg">
-    <link rel="apple-touch-icon" sizes="180x180" href="icon-180x180.jpg">
-    <link rel="apple-touch-icon" sizes="192x192" href="icon-192x192.jpg">
-    <link rel="apple-touch-icon" sizes="512x512" href="icon-512x512.jpg">
-    
-    <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180x180.jpg">
+<link rel="apple-touch-icon" sizes="152x152" href="icon-152x152.jpg">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180x180.jpg">
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192x192.jpg">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512x512.jpg">
+
+<link rel="manifest" href="manifest.json">
 
 <style>
 :root{
@@ -115,25 +115,46 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #btnApuntar{width:64px;height:64px;right:206px;bottom:60px;}
 #avisoVertical{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:var(--ambar);font-size:16px;letter-spacing:3px;text-align:center;padding:40px;pointer-events:auto;z-index:60;line-height:2;}
 #btnFullscreen{position:absolute;right:12px;top:12px;pointer-events:auto;z-index:40;background:rgba(0,0,0,.5);border:1px solid var(--borde);color:var(--verde);width:40px;height:40px;font-size:17px;border-radius:6px;cursor:pointer;display:none;align-items:center;justify-content:center;font-family:inherit;}
-#btnPausaMovil {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  pointer-events: auto;
-  z-index: 40;
-  background: rgba(0,0,0,.5);
-  border: 1px solid var(--ambar);
-  color: var(--ambar);
-  width: 40px;
-  height: 40px;
-  font-size: 17px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  font-family: inherit;
+
+/* --- Selección de mapa --- */
+.listaMapas{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;
+  max-width:960px;
+  width:100%;
+  padding:0 10px;
 }
+.tarjetaMapa{
+  background:var(--panel);
+  border:2px solid var(--borde);
+  padding:16px 18px;
+  cursor:pointer;
+  transition:transform .18s,border-color .18s,background .18s,box-shadow .18s;
+  text-align:left;
+  pointer-events:auto;
+  position:relative;
+}
+.tarjetaMapa:hover{
+  border-color:var(--verde2);
+  background:rgba(61,220,107,.14);
+  transform:translateY(-3px);
+  box-shadow:0 8px 24px rgba(61,220,107,.25);
+}
+.tarjetaMapa .mNombre{
+  font-size:14px;font-weight:bold;letter-spacing:3px;color:#fff;margin-bottom:8px;
+}
+.tarjetaMapa .mDesc{
+  font-size:11px;letter-spacing:1px;color:#9fd8b0;line-height:1.55;
+  opacity:.88;margin-bottom:10px;min-height:48px;
+}
+.tarjetaMapa .mDif{
+  font-size:10px;letter-spacing:3px;padding:3px 9px;border:1px solid currentColor;
+  display:inline-block;font-weight:bold;
+}
+.tarjetaMapa .mDif.facil{color:var(--ambar);}
+.tarjetaMapa .mDif.normal{color:var(--verde);}
+.tarjetaMapa .mDif.dificil{color:var(--rojo);}
 </style>
 </head>
 <body>
@@ -187,14 +208,20 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
   </div>
 
   <button id="btnFullscreen">⛶</button>
-  <button id="btnPausaMovil">⏸</button>
 
   <div id="menu" class="pantalla">
     <div class="titulo">OPERACIÓN ARENA</div>
     <div class="subtitulo">COMBATE MODERNO · SUPERVIVENCIA POR OLEADAS</div>
     <div class="panelInstrucciones" id="panelInstrucciones"></div>
     <button id="btnJugar" class="boton">JUGAR</button>
-    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v1.1 · THREE.JS · WEB AUDIO API</div>
+    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v1.2 · THREE.JS · WEB AUDIO API</div>
+  </div>
+
+  <div id="seleccionMapa" class="pantalla oculto">
+    <div class="titulo" style="font-size:clamp(24px,6vw,42px)">SELECCIONA MAPA</div>
+    <div class="subtitulo">ELIGE TU CAMPO DE BATALLA</div>
+    <div id="listaMapas" class="listaMapas"></div>
+    <button id="btnVolverMenu" class="boton secundario">VOLVER AL MENÚ</button>
   </div>
 
   <div id="pausa" class="pantalla oculto">
@@ -213,6 +240,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
       <div>PUNTUACIÓN FINAL: <span class="num" id="goPuntos">0</span></div>
     </div>
     <button id="btnReintentar" class="boton">REINTENTAR</button>
+    <button id="btnCambiarMapa" class="boton secundario">CAMBIAR MAPA</button>
   </div>
 
   <div id="avisoVertical">📱 GIRA EL DISPOSITIVO<br>PARA JUGAR EN HORIZONTAL</div>
@@ -432,7 +460,7 @@ const Input = {
   ratonIzq:false, ratonDer:false,
   dx:0, dy:0, rueda:0,
   bloquearRaton:false,
-  arrastre:false,          // fallback: arrastrar con botón central
+  arrastre:false,
   arrX:0, arrY:0
 };
 
@@ -463,14 +491,12 @@ window.addEventListener('keydown', e=>{
 });
 window.addEventListener('keyup', e=>{ Input.teclas[e.code] = false; });
 
-/* --- Ratón: movimiento (pointer lock + fallback arrastre) --- */
+/* --- Ratón --- */
 window.addEventListener('mousemove', e=>{
   if(Input.bloquearRaton){
-    // Modo Pointer Lock: usar movimiento relativo nativo del navegador
     Input.dx += (e.movementX || 0);
     Input.dy += (e.movementY || 0);
   } else if(Input.arrastre){
-    // Modo fallback: arrastrar con botón central
     const dx = e.clientX - Input.arrX;
     const dy = e.clientY - Input.arrY;
     Input.arrX = e.clientX;
@@ -484,7 +510,6 @@ window.addEventListener('mousedown', e=>{
   if(e.button === 0) Input.ratonIzq = true;
   if(e.button === 2) Input.ratonDer = true;
 
-  // Botón central: iniciar arrastre para mirar (solo si no hay pointer lock)
   if(e.button === 1 && !Input.bloquearRaton && Estado.fase === 'jugando' && !ES_MOVIL){
     Input.arrastre = true;
     Input.arrX = e.clientX;
@@ -492,7 +517,6 @@ window.addEventListener('mousedown', e=>{
     e.preventDefault();
   }
 
-  // Cualquier clic dentro del canvas: intentar bloquear ratón
   if(e.target === lienzo && Estado.fase === 'jugando' && !ES_MOVIL && !Input.bloquearRaton){
     pedirBloqueo();
   }
@@ -527,12 +551,10 @@ document.addEventListener('pointerlockchange', ()=>{
   if(bloqueado){
     intentosLock = 0;
   } else if(Estado.fase === 'jugando' && !ES_MOVIL){
-    // El usuario salió del pointer lock (ESC) → pausar
     pausar();
   }
 });
 document.addEventListener('pointerlockerror', ()=>{
-  // El navegador rechazó el pointer lock (iframe restrictivo, permisos, etc.)
   Input.bloquearRaton = false;
   actualizarAvisoRaton();
 });
@@ -571,6 +593,11 @@ let renderer, escena, camara, reloj;
 const mapaGroup = new THREE.Group();
 const colisionadores = [];
 
+let cieloMesh = null;
+let hemiLight = null;
+let solLight = null;
+let rellenoLight = null;
+
 function initEscena(){
   renderer = new THREE.WebGLRenderer({
     canvas: lienzo, antialias: !ES_MOVIL, powerPreference: 'high-performance'
@@ -582,7 +609,7 @@ function initEscena(){
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   escena = new THREE.Scene();
-  escena.fog = new THREE.Fog(0xc97a4a, 34, 118);
+  escena.fog = new THREE.Fog(0x000000, 40, 120);
 
   camara = new THREE.PerspectiveCamera(CONFIG.FOV_BASE, window.innerWidth/window.innerHeight, 0.05, 600);
   camara.rotation.order = 'YXZ';
@@ -590,53 +617,77 @@ function initEscena(){
 
   reloj = new THREE.Clock();
 
-  const cieloCanvas = document.createElement('canvas');
-  cieloCanvas.width = 8; cieloCanvas.height = 256;
-  const g2 = cieloCanvas.getContext('2d');
-  const grad = g2.createLinearGradient(0,0,0,256);
-  grad.addColorStop(0.00,'#131f3d');
-  grad.addColorStop(0.34,'#4a3357');
-  grad.addColorStop(0.52,'#a04a5a');
-  grad.addColorStop(0.66,'#e2793f');
-  grad.addColorStop(0.80,'#f7bb63');
-  grad.addColorStop(1.00,'#3a2530');
-  g2.fillStyle = grad; g2.fillRect(0,0,8,256);
-  const texturaCielo = new THREE.CanvasTexture(cieloCanvas);
-  texturaCielo.magFilter = THREE.LinearFilter;
+  hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.6);
+  escena.add(hemiLight);
 
-  const cielo = new THREE.Mesh(
-    new THREE.SphereGeometry(340, 24, 16),
-    new THREE.MeshBasicMaterial({ map:texturaCielo, side:THREE.BackSide, fog:false, depthWrite:false })
-  );
-  escena.add(cielo);
-
-  const hemi = new THREE.HemisphereLight(0x9db8e0, 0x40342a, 0.62);
-  escena.add(hemi);
-
-  const sol = new THREE.DirectionalLight(0xffb066, 1.05);
-  sol.position.set(46, 54, -34);
+  solLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  solLight.position.set(46, 54, -34);
   if(!ES_MOVIL){
-    sol.castShadow = true;
-    sol.shadow.mapSize.width = 1024;
-    sol.shadow.mapSize.height = 1024;
+    solLight.castShadow = true;
+    solLight.shadow.mapSize.width = 1024;
+    solLight.shadow.mapSize.height = 1024;
     const d = 48;
-    sol.shadow.camera.left = -d; sol.shadow.camera.right = d;
-    sol.shadow.camera.top = d;   sol.shadow.camera.bottom = -d;
-    sol.shadow.camera.near = 1;  sol.shadow.camera.far = 160;
-    sol.shadow.bias = -0.0016;
+    solLight.shadow.camera.left = -d; solLight.shadow.camera.right = d;
+    solLight.shadow.camera.top = d;   solLight.shadow.camera.bottom = -d;
+    solLight.shadow.camera.near = 1;  solLight.shadow.camera.far = 160;
+    solLight.shadow.bias = -0.0016;
   }
-  escena.add(sol);
+  escena.add(solLight);
 
-  const relleno = new THREE.DirectionalLight(0x5577aa, 0.28);
-  relleno.position.set(-30, 24, 30);
-  escena.add(relleno);
+  rellenoLight = new THREE.DirectionalLight(0xffffff, 0.28);
+  rellenoLight.position.set(-30, 24, 30);
+  escena.add(rellenoLight);
 
   escena.add(mapaGroup);
 }
 
 /* ============================================================
-   6. MAPA
+   6. MAPAS
    ============================================================ */
+const MAPAS = [
+  {
+    id:'urbana', nombre:'ARENA URBANA', dificultad:'NORMAL',
+    desc:'Zona urbana al atardecer. Cobertura media, combate a media distancia.',
+    cielo:['#131f3d','#4a3357','#a04a5a','#e2793f','#f7bb63','#3a2530'],
+    fog:{ color:0xc97a4a, near:34, far:118 },
+    hemi:{ sky:0x9db8e0, ground:0x40342a, intensity:0.62 },
+    sol:{ color:0xffb066, intensity:1.05, pos:[46,54,-34] },
+    relleno:{ color:0x5577aa, intensity:0.28, pos:[-30,24,30] },
+    construir: construirArenaUrbana
+  },
+  {
+    id:'almacen', nombre:'ALMACÉN INDUSTRIAL', dificultad:'DIFÍCIL',
+    desc:'Interior cerrado con contenedores y columnas. Combate muy cercano, poca visibilidad.',
+    cielo:['#0a0a12','#0f1018','#151622','#1a1c28','#20222e','#0a0a10'],
+    fog:{ color:0x1a1c28, near:10, far:62 },
+    hemi:{ sky:0x5566aa, ground:0x181820, intensity:0.55 },
+    sol:{ color:0xaaccff, intensity:0.55, pos:[20,60,10] },
+    relleno:{ color:0x334466, intensity:0.42, pos:[-20,15,-20] },
+    construir: construirAlmacen
+  },
+  {
+    id:'ruinas', nombre:'RUINAS NOCTURNAS', dificultad:'DIFÍCIL',
+    desc:'Ciudad en ruinas bajo la luna. Edificios derruidos, escombros y visibilidad reducida.',
+    cielo:['#050510','#0a0a20','#151535','#20204a','#2a2a5a','#101020'],
+    fog:{ color:0x1a1a3a, near:18, far:88 },
+    hemi:{ sky:0x4455aa, ground:0x151520, intensity:0.42 },
+    sol:{ color:0x8899dd, intensity:0.75, pos:[-30,70,20] },
+    relleno:{ color:0x2244aa, intensity:0.26, pos:[30,15,-30] },
+    construir: construirRuinas
+  },
+  {
+    id:'artica', nombre:'BASE ÁRTICA', dificultad:'FÁCIL',
+    desc:'Instalación militar en el hielo. Espacios abiertos y mucha visibilidad.',
+    cielo:['#3a5570','#5a7590','#8aa5b8','#b8cad8','#dde8f0','#a8b8c8'],
+    fog:{ color:0xc8d8e5, near:40, far:150 },
+    hemi:{ sky:0xdde8f5, ground:0x8899aa, intensity:0.88 },
+    sol:{ color:0xfff0dd, intensity:1.10, pos:[30,60,40] },
+    relleno:{ color:0x8899bb, intensity:0.30, pos:[-40,20,-30] },
+    construir: construirArtica
+  }
+];
+
+/* ---- Texturas auxiliares ---- */
 function texturaAsfalto(){
   const c = document.createElement('canvas');
   c.width = c.height = 256;
@@ -658,6 +709,39 @@ function texturaAsfalto(){
   return t;
 }
 
+function texturaHormigon(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#41454c'; g.fillRect(0,0,256,256);
+  for(let i=0;i<4200;i++){
+    const v = Math.floor(rand(48,92));
+    g.fillStyle = 'rgba('+v+','+(v+3)+','+(v+8)+',0.5)';
+    g.fillRect(Math.random()*256, Math.random()*256, 2, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(12,12);
+  return t;
+}
+
+function texturaTierra(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#2c2620'; g.fillRect(0,0,256,256);
+  for(let i=0;i<5200;i++){
+    const v = Math.floor(rand(30,62));
+    g.fillStyle = 'rgba('+v+','+(v-4)+','+(v-8)+',0.55)';
+    g.fillRect(Math.random()*256, Math.random()*256, 2, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(14,14);
+  return t;
+}
+
+/* ---- Helper común ---- */
 function agregarCaja(x, y, z, w, h, d, color, opciones){
   opciones = opciones || {};
   const geo = new THREE.BoxGeometry(w, h, d);
@@ -676,7 +760,10 @@ function agregarCaja(x, y, z, w, h, d, color, opciones){
   return malla;
 }
 
-function construirMapa(){
+/* ============================================================
+   MAPA 1 — ARENA URBANA
+   ============================================================ */
+function construirArenaUrbana(){
   const A = CONFIG.ARENA;
   const sueloMat = new THREE.MeshLambertMaterial({ map: texturaAsfalto() });
   const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
@@ -731,7 +818,8 @@ function construirMapa(){
     const d = horiz ? 2.6 : 6.2;
     agregarCaja(p[0], 0, p[1], w, 2.7, d, coloresCont[i % coloresCont.length]);
     if(i % 3 === 0){
-      agregarCaja(p[0] + rand(-0.4,0.4), 2.7, p[1] + rand(-0.4,0.4), w*0.85, 2.5, d*0.9,
+      agregarCaja(p[0] + rand(-0.4,0.4), 2.7, p[1] + rand(-0.4,0.4),
+                  w*0.85, 2.5, d*0.9,
                   coloresCont[(i+2) % coloresCont.length]);
     }
   }
@@ -748,6 +836,279 @@ function construirMapa(){
     const ang = (i/10) * Math.PI*2;
     const r = 15;
     agregarCaja(Math.cos(ang)*r, 0, Math.sin(ang)*r, 3.2, 1.15, 0.7, 0x9a9384);
+  }
+}
+
+/* ============================================================
+   MAPA 2 — ALMACÉN INDUSTRIAL
+   ============================================================ */
+function construirAlmacen(){
+  const A = CONFIG.ARENA;
+
+  const sueloMat = new THREE.MeshLambertMaterial({ map: texturaHormigon() });
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
+  suelo.rotation.x = -Math.PI/2;
+  suelo.receiveShadow = true;
+  mapaGroup.add(suelo);
+
+  const techoMat = new THREE.MeshLambertMaterial({ color: 0x2a2c34 });
+  const techo = new THREE.Mesh(new THREE.PlaneGeometry(A*2+2, A*2+2), techoMat);
+  techo.rotation.x = Math.PI/2;
+  techo.position.y = 12;
+  mapaGroup.add(techo);
+
+  const mc = 0x3a3a44;
+  agregarCaja( 0, 0, -A, A*2+2, 12, 1.4, mc);
+  agregarCaja( 0, 0,  A, A*2+2, 12, 1.4, mc);
+  agregarCaja(-A, 0,  0, 1.4, 12, A*2+2, mc);
+  agregarCaja( A, 0,  0, 1.4, 12, A*2+2, mc);
+
+  const colMat = 0x555560;
+  for(let x=-20; x<=20; x+=10){
+    for(let z=-20; z<=20; z+=10){
+      if(Math.abs(x)<3 && Math.abs(z)<3) continue;
+      agregarCaja(x, 0, z, 0.9, 12, 0.9, colMat);
+    }
+  }
+
+  const rackMat = 0x6b5a3a;
+  const racks = [[-20,-10],[-20,10],[20,-10],[20,10]];
+  for(let i=0;i<racks.length;i++){
+    const rx = racks[i][0], rz = racks[i][1];
+    for(let s=0;s<3;s++){
+      agregarCaja(rx, s*2.2, rz, 1.0, 0.25, 10, rackMat, {solido:false});
+    }
+    agregarCaja(rx-2.5, 0, rz, 0.4, 8, 0.4, rackMat);
+    agregarCaja(rx+2.5, 0, rz, 0.4, 8, 0.4, rackMat);
+  }
+
+  const coloresCont = [0x8a3b2e, 0x2e5a8a, 0x3f7a45, 0x8a742e, 0x5a3f7a, 0x7a3b3b];
+  for(let i=0;i<18;i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 6) continue;
+    if(Math.abs(x) < 5 && Math.abs(z) < 5) continue;
+    const horiz = Math.random() > 0.5;
+    const w = horiz ? 6.5 : 2.8;
+    const d = horiz ? 2.8 : 6.5;
+    const h = rand(2.4, 3.4);
+    agregarCaja(x, 0, z, w, h, d, coloresCont[i % coloresCont.length]);
+    if(Math.random() > 0.5){
+      agregarCaja(x + rand(-0.3,0.3), h, z + rand(-0.3,0.3),
+                  w*0.9, 2.2, d*0.9,
+                  coloresCont[(i+1) % coloresCont.length]);
+    }
+  }
+
+  for(let i=0;i<30;i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(0.9, 1.7);
+    agregarCaja(x, 0, z, s, s, s, 0x8a7a4e);
+  }
+
+  for(let i=0;i<14;i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(0.9, 1.2);
+    agregarCaja(x, 0, z, s, s*1.6, s, 0x6a5a3a);
+  }
+}
+
+/* ============================================================
+   MAPA 3 — RUINAS NOCTURNAS
+   ============================================================ */
+function construirRuinas(){
+  const A = CONFIG.ARENA;
+
+  const sueloMat = new THREE.MeshLambertMaterial({ map: texturaTierra() });
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
+  suelo.rotation.x = -Math.PI/2;
+  suelo.receiveShadow = true;
+  mapaGroup.add(suelo);
+
+  const muroMat = 0x3e3830;
+  for(let x=-A; x<=A; x+=4){
+    agregarCaja(x, 0, -A, 3.8, rand(3, 7), 1.4, muroMat);
+    agregarCaja(x, 0,  A, 3.8, rand(3, 7), 1.4, muroMat);
+  }
+  for(let z=-A; z<=A; z+=4){
+    agregarCaja(-A, 0, z, 1.4, rand(3, 7), 3.8, muroMat);
+    agregarCaja( A, 0, z, 1.4, rand(3, 7), 3.8, muroMat);
+  }
+
+  for(let i=0;i<14;i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 6) continue;
+    const w = rand(4, 9), d = rand(4, 9);
+    const h = rand(3, 9);
+    agregarCaja(x, 0, z, w, h, d, 0x42382e);
+    for(let j=0;j<5;j++){
+      const s = rand(0.7, 1.6);
+      agregarCaja(x + rand(-w, w), 0, z + rand(-d, d), s, s*0.6, s, 0x504840);
+    }
+  }
+
+  for(let i=0;i<8;i++){
+    const x = rand(-22, 22), z = rand(-22, 22);
+    if(Math.hypot(x, z) < 6) continue;
+    agregarCaja(x, 0, z, rand(5, 8), 0.9, 0.9, 0x55504a);
+  }
+
+  for(let i=0;i<30;i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(0.6, 1.4);
+    agregarCaja(x, 0, z, s, s*0.5, s, 0x45403a);
+  }
+
+  for(let i=0;i<10;i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 6) continue;
+    agregarCaja(x, 0, z, 0.45, rand(4, 6), 0.45, 0x18130d);
+  }
+
+  for(let i=0;i<6;i++){
+    const x = rand(-22, 22), z = rand(-22, 22);
+    if(Math.hypot(x, z) < 6) continue;
+    agregarCaja(x, 0, z, 4.4, 1.2, 2.0, 0x2a2624);
+    agregarCaja(x, 1.2, z, 3.0, 0.9, 1.9, 0x1e1a18, {solido:false});
+  }
+}
+
+/* ============================================================
+   MAPA 4 — BASE ÁRTICA
+   ============================================================ */
+function construirArtica(){
+  const A = CONFIG.ARENA;
+
+  const sueloMat = new THREE.MeshLambertMaterial({ color: 0xdde8f0 });
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
+  suelo.rotation.x = -Math.PI/2;
+  suelo.receiveShadow = true;
+  mapaGroup.add(suelo);
+
+  for(let x=-A; x<=A; x+=3){
+    agregarCaja(x, 0, -A, 3, rand(2.2, 3.8), 1.6, 0xe8f0f8);
+    agregarCaja(x, 0,  A, 3, rand(2.2, 3.8), 1.6, 0xe8f0f8);
+  }
+  for(let z=-A; z<=A; z+=3){
+    agregarCaja(-A, 0, z, 1.6, rand(2.2, 3.8), 3, 0xe8f0f8);
+    agregarCaja( A, 0, z, 1.6, rand(2.2, 3.8), 3, 0xe8f0f8);
+  }
+
+  const bunkerMat = 0x8899aa;
+  const posB = [[-18,-16],[18,-18],[-20,16],[20,18]];
+  for(let i=0;i<posB.length;i++){
+    agregarCaja(posB[i][0], 0, posB[i][1], 12, 6, 10, bunkerMat);
+    agregarCaja(posB[i][0], 6, posB[i][1], 13, 0.5, 11, 0x667788, {solido:false});
+    agregarCaja(posB[i][0]-3, 3, posB[i][1]+5.05, 1.4, 1.4, 0.2, 0x1a2430, {solido:false});
+    agregarCaja(posB[i][0]+3, 3, posB[i][1]+5.05, 1.4, 1.4, 0.2, 0x1a2430, {solido:false});
+  }
+
+  const colCont = [0x2e5a8a, 0x3f7a45, 0x8a742e, 0x7a2e2e];
+  for(let i=0;i<14;i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 6) continue;
+    const horiz = Math.random() > 0.5;
+    const w = horiz ? 6 : 2.5;
+    const d = horiz ? 2.5 : 6;
+    agregarCaja(x, 0, z, w, 2.6, d, colCont[i % colCont.length]);
+  }
+
+  for(let i=0;i<22;i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(1.5, 3);
+    agregarCaja(x, 0, z, s, s, s, 0xbfd8e8);
+  }
+
+  for(let i=0;i<24;i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(1, 2.4);
+    agregarCaja(x, 0, z, s, s*0.45, s, 0xf0f8ff);
+  }
+
+  for(let i=0;i<12;i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(1.1, 1.8);
+    agregarCaja(x, 0, z, s, s, s, 0xa88a5a);
+  }
+}
+
+/* ---- Cielo dinámico ---- */
+function crearCielo(colores){
+  if(cieloMesh){
+    escena.remove(cieloMesh);
+    if(cieloMesh.geometry) cieloMesh.geometry.dispose();
+    if(cieloMesh.material){
+      if(cieloMesh.material.map) cieloMesh.material.map.dispose();
+      cieloMesh.material.dispose();
+    }
+    cieloMesh = null;
+  }
+  const c = document.createElement('canvas');
+  c.width = 8; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0,0,0,256);
+  const n = Math.max(1, colores.length - 1);
+  for(let i=0;i<colores.length;i++) grad.addColorStop(i/n, colores[i]);
+  g.fillStyle = grad; g.fillRect(0,0,8,256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.LinearFilter;
+  cieloMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(340, 24, 16),
+    new THREE.MeshBasicMaterial({ map:tex, side:THREE.BackSide, fog:false, depthWrite:false })
+  );
+  escena.add(cieloMesh);
+}
+
+/* ---- Limpieza total del mapa ---- */
+function limpiarMapa(){
+  while(mapaGroup.children.length > 0){
+    const obj = mapaGroup.children.pop();
+    if(obj.parent) obj.parent.remove(obj);
+    obj.traverse(function(o){
+      if(o.geometry) o.geometry.dispose();
+      if(o.material){
+        if(Array.isArray(o.material)){
+          for(let i=0;i<o.material.length;i++){
+            if(o.material[i].map) o.material[i].map.dispose();
+            o.material[i].dispose();
+          }
+        } else {
+          if(o.material.map) o.material.map.dispose();
+          o.material.dispose();
+        }
+      }
+    });
+  }
+  colisionadores.length = 0;
+}
+
+/* ---- Aplicar entorno del mapa ---- */
+function aplicarEntornoMapa(mapa){
+  crearCielo(mapa.cielo);
+
+  escena.fog.color.setHex(mapa.fog.color);
+  escena.fog.near = mapa.fog.near;
+  escena.fog.far  = mapa.fog.far;
+
+  if(hemiLight){
+    hemiLight.color.setHex(mapa.hemi.sky);
+    hemiLight.groundColor.setHex(mapa.hemi.ground);
+    hemiLight.intensity = mapa.hemi.intensity;
+  }
+  if(solLight){
+    solLight.color.setHex(mapa.sol.color);
+    solLight.intensity = mapa.sol.intensity;
+    solLight.position.set(mapa.sol.pos[0], mapa.sol.pos[1], mapa.sol.pos[2]);
+  }
+  if(rellenoLight){
+    rellenoLight.color.setHex(mapa.relleno.color);
+    rellenoLight.intensity = mapa.relleno.intensity;
+    rellenoLight.position.set(mapa.relleno.pos[0], mapa.relleno.pos[1], mapa.relleno.pos[2]);
   }
 }
 
@@ -1504,6 +1865,18 @@ function initEfectos(){
   escena.add(sistemaPart);
 }
 
+function limpiarEfectos(){
+  for(let i=0;i<trazadoras.length;i++){
+    trazadoras[i].vida = 0;
+    trazadoras[i].mesh.visible = false;
+  }
+  for(let i=0;i<CONFIG.MAX_PARTICULAS;i++){
+    particulas[i].vida = 0;
+    partPosiciones[i*3+1] = -9999;
+  }
+  if(sistemaPart) sistemaPart.geometry.attributes.position.needsUpdate = true;
+}
+
 function crearTrazadora(desde, hasta, color){
   const t = trazadoras[indiceTraza];
   indiceTraza = (indiceTraza + 1) % CONFIG.MAX_TRAZADORAS;
@@ -1623,7 +1996,16 @@ const Estado = {
   tIntermedio: 0
 };
 
+let mapaSeleccionado = 0;
+
 function iniciarPartida(){
+  limpiarMapa();
+  limpiarEfectos();
+
+  const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
+  aplicarEntornoMapa(mapa);
+  mapa.construir();
+
   for(let i=0;i<enemigos.length;i++) enemigos[i].destruir();
   enemigos.length = 0;
 
@@ -1642,6 +2024,7 @@ function iniciarPartida(){
 
   Estado.fase = 'jugando';
   document.getElementById('menu').classList.add('oculto');
+  document.getElementById('seleccionMapa').classList.add('oculto');
   document.getElementById('gameover').classList.add('oculto');
   document.getElementById('pausa').classList.add('oculto');
   document.getElementById('hud').classList.remove('oculto');
@@ -1650,6 +2033,7 @@ function iniciarPartida(){
 
   camara.fov = CONFIG.FOV_BASE;
   camara.updateProjectionMatrix();
+  camara.rotation.z = 0;
 
   iniciarOleada(1);
   pedirBloqueo();
@@ -1830,15 +2214,12 @@ function actualizarHUDMunicion(){
 }
 
 /* ============================================================
-   15. ACTUALIZACIÓN DEL JUGADOR  ← ← ← AQUÍ ESTÁ EL FIX
+   15. ACTUALIZACIÓN DEL JUGADOR
    ============================================================ */
 function actualizarJugador(dt){
   const J = Jugador;
   if(!J.vivo) return;
 
-  /* ---------- APLICAR MIRADA DEL RATÓN ---------- */
-  // ESTE BLOQUE ES EL QUE FALTABA. Antes los deltas se acumulaban
-  // en Input.dx / Input.dy pero nunca se consumían.
   if(!ES_MOVIL){
     const sens = CONFIG.SENS_PC * (1 - J.adsT * 0.55);
     if(Input.dx !== 0 || Input.dy !== 0){
@@ -1847,11 +2228,9 @@ function actualizarJugador(dt){
       J.pitch = clamp(J.pitch, -Math.PI/2 + 0.05, Math.PI/2 - 0.05);
     }
   }
-  // Consumir deltas SIEMPRE (aunque no se apliquen, para no acumular basura)
   Input.dx = 0;
   Input.dy = 0;
 
-  /* ---------- ENTRADA DE MOVIMIENTO ---------- */
   let ix = 0, iz = 0;
   if(ES_MOVIL){
     ix = Movil.joyX; iz = Movil.joyY;
@@ -2007,10 +2386,11 @@ function bucle(){
     actualizarEfectos(dt);
     actualizarMensaje(dt);
     actualizarHUDStats();
-  } else if(Estado.fase === 'menu'){
+  } else if(Estado.fase === 'menu' || Estado.fase === 'seleccion'){
     const t = performance.now() * 0.00013;
     camara.position.set(Math.cos(t) * 16, 6.5, Math.sin(t) * 16 + 4);
     camara.lookAt(0, 2.2, 0);
+    camara.rotation.z = 0;
   } else if(Estado.fase === 'gameover'){
     actualizarEfectos(dt);
     camara.position.y = Math.max(0.55, camara.position.y - dt * 0.9);
@@ -2166,34 +2546,92 @@ function construirInstrucciones(){
 }
 
 /* ============================================================
+   20b. SELECCIÓN DE MAPA
+   ============================================================ */
+function mostrarSeleccionMapa(){
+  Estado.fase = 'seleccion';
+  document.getElementById('menu').classList.add('oculto');
+  document.getElementById('gameover').classList.add('oculto');
+  document.getElementById('pausa').classList.add('oculto');
+  document.getElementById('hud').classList.add('oculto');
+  document.getElementById('controlesMovil').classList.add('oculto');
+  document.getElementById('crosshair').classList.remove('activa');
+  document.getElementById('seleccionMapa').classList.remove('oculto');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+
+function mostrarMenuPrincipal(){
+  Estado.fase = 'menu';
+  document.getElementById('seleccionMapa').classList.add('oculto');
+  document.getElementById('gameover').classList.add('oculto');
+  document.getElementById('pausa').classList.add('oculto');
+  document.getElementById('hud').classList.add('oculto');
+  document.getElementById('controlesMovil').classList.add('oculto');
+  document.getElementById('crosshair').classList.remove('activa');
+  document.getElementById('menu').classList.remove('oculto');
+}
+
+function construirListaMapas(){
+  const cont = document.getElementById('listaMapas');
+  let html = '';
+  for(let i=0;i<MAPAS.length;i++){
+    const m = MAPAS[i];
+    let difCls = 'normal';
+    if(m.dificultad === 'FÁCIL') difCls = 'facil';
+    else if(m.dificultad === 'DIFÍCIL') difCls = 'dificil';
+    html += '<div class="tarjetaMapa" data-idx="' + i + '">'
+         +  '<div class="mNombre">' + m.nombre + '</div>'
+         +  '<div class="mDesc">' + m.desc + '</div>'
+         +  '<div class="mDif ' + difCls + '">' + m.dificultad + '</div>'
+         +  '</div>';
+  }
+  cont.innerHTML = html;
+
+  const tarjetas = cont.querySelectorAll('.tarjetaMapa');
+  for(let i=0;i<tarjetas.length;i++){
+    tarjetas[i].addEventListener('click', function(){
+      mapaSeleccionado = parseInt(this.getAttribute('data-idx'), 10) || 0;
+      Audio3D.init();
+      Audio3D.reanudar();
+      iniciarPartida();
+    });
+  }
+}
+
+/* ============================================================
    21. INICIALIZACIÓN
    ============================================================ */
 function init(){
   initEscena();
-  construirMapa();
   initEfectos();
   initViewmodels();
   construirInstrucciones();
+  construirListaMapas();
+
+  // Construir mapa de fondo para el menú
+  aplicarEntornoMapa(MAPAS[0]);
+  MAPAS[0].construir();
 
   if(ES_MOVIL){
     document.getElementById('controlesMovil').classList.add('oculto');
     document.getElementById('btnFullscreen').style.display = 'flex';
-    document.getElementById('btnPausaMovil').style.display = 'flex';
   }
   initControlesMoviles();
 
   document.getElementById('btnJugar').addEventListener('click', function(){
     Audio3D.init();
     Audio3D.reanudar();
-    iniciarPartida();
+    mostrarSeleccionMapa();
+  });
+
+  document.getElementById('btnVolverMenu').addEventListener('click', function(){
+    mostrarMenuPrincipal();
   });
 
   document.getElementById('btnReanudar').addEventListener('click', function(){ reanudar(); });
   document.getElementById('btnReiniciarPausa').addEventListener('click', function(){ iniciarPartida(); });
   document.getElementById('btnReintentar').addEventListener('click', function(){ iniciarPartida(); });
-  document.getElementById('btnPausaMovil').addEventListener('click', function(){
-    if(Estado.fase === 'jugando') pausar();
-  });
+  document.getElementById('btnCambiarMapa').addEventListener('click', function(){ mostrarSeleccionMapa(); });
 
   document.getElementById('btnFullscreen').addEventListener('click', function(){
     const doc = document.documentElement;
@@ -2254,13 +2692,12 @@ if(typeof THREE === 'undefined'){
 })();
 
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker registrado correctamente.', reg))
-        .catch(err => console.error('Error al registrar el Service Worker:', err));
-    });
-  }
-  
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker registrado correctamente.', reg))
+      .catch(err => console.error('Error al registrar el Service Worker:', err));
+  });
+}
 </script>
 </body>
 </html>
