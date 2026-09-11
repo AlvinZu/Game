@@ -115,6 +115,25 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #btnApuntar{width:64px;height:64px;right:206px;bottom:60px;}
 #avisoVertical{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:var(--ambar);font-size:16px;letter-spacing:3px;text-align:center;padding:40px;pointer-events:auto;z-index:60;line-height:2;}
 #btnFullscreen{position:absolute;right:12px;top:12px;pointer-events:auto;z-index:40;background:rgba(0,0,0,.5);border:1px solid var(--borde);color:var(--verde);width:40px;height:40px;font-size:17px;border-radius:6px;cursor:pointer;display:none;align-items:center;justify-content:center;font-family:inherit;}
+#btnPausaMovil {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  pointer-events: auto;
+  z-index: 40;
+  background: rgba(0,0,0,.5);
+  border: 1px solid var(--ambar);
+  color: var(--ambar);
+  width: 40px;
+  height: 40px;
+  font-size: 17px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
 </style>
 </head>
 <body>
@@ -168,6 +187,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
   </div>
 
   <button id="btnFullscreen">⛶</button>
+  <button id="btnPausaMovil">⏸</button>
 
   <div id="menu" class="pantalla">
     <div class="titulo">OPERACIÓN ARENA</div>
@@ -2158,6 +2178,7 @@ function init(){
   if(ES_MOVIL){
     document.getElementById('controlesMovil').classList.add('oculto');
     document.getElementById('btnFullscreen').style.display = 'flex';
+    document.getElementById('btnPausaMovil').style.display = 'flex';
   }
   initControlesMoviles();
 
@@ -2170,6 +2191,9 @@ function init(){
   document.getElementById('btnReanudar').addEventListener('click', function(){ reanudar(); });
   document.getElementById('btnReiniciarPausa').addEventListener('click', function(){ iniciarPartida(); });
   document.getElementById('btnReintentar').addEventListener('click', function(){ iniciarPartida(); });
+  document.getElementById('btnPausaMovil').addEventListener('click', function(){
+    if(Estado.fase === 'jugando') pausar();
+  });
 
   document.getElementById('btnFullscreen').addEventListener('click', function(){
     const doc = document.documentElement;
