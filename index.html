@@ -73,7 +73,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #scope::after{top:50%;left:0;right:0;height:1px;margin-top:-.5px;}
 #scopeCruz{position:absolute;left:50%;top:50%;width:200px;height:200px;transform:translate(-50%,-50%);border:1px solid rgba(141,255,171,.25);border-radius:50%;}
 
-/* --- Aviso de ratón sin bloquear --- */
 #mouseHint{
   position:absolute;left:50%;top:14px;transform:translateX(-50%);
   background:rgba(20,10,5,.85);border:1px solid var(--ambar);
@@ -116,6 +115,18 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #avisoVertical{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.9);color:var(--ambar);font-size:16px;letter-spacing:3px;text-align:center;padding:40px;pointer-events:auto;z-index:60;line-height:2;}
 #btnFullscreen{position:absolute;right:12px;top:12px;pointer-events:auto;z-index:40;background:rgba(0,0,0,.5);border:1px solid var(--borde);color:var(--verde);width:40px;height:40px;font-size:17px;border-radius:6px;cursor:pointer;display:none;align-items:center;justify-content:center;font-family:inherit;}
 
+/* --- Botón de pausa (móvil) --- */
+#btnPausa{
+  position:absolute;left:12px;top:12px;pointer-events:auto;z-index:45;
+  background:rgba(0,0,0,.55);border:1px solid var(--borde);
+  color:var(--verde);width:48px;height:48px;font-size:20px;line-height:1;
+  border-radius:8px;cursor:pointer;display:none;
+  align-items:center;justify-content:center;font-family:inherit;
+  box-shadow:0 0 12px rgba(61,220,107,.25);
+  transition:transform .1s,background .15s;
+}
+#btnPausa:active{transform:scale(.92);background:rgba(61,220,107,.35);}
+
 /* --- Selección de mapa --- */
 .listaMapas{
   display:grid;
@@ -155,6 +166,103 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 .tarjetaMapa .mDif.facil{color:var(--ambar);}
 .tarjetaMapa .mDif.normal{color:var(--verde);}
 .tarjetaMapa .mDif.dificil{color:var(--rojo);}
+
+/* --- DESAFÍO MATEMÁTICO --- */
+#quiz{
+  gap:14px;
+  background:radial-gradient(ellipse at center,rgba(15,30,20,.94) 0%,rgba(0,0,0,.97) 100%);
+  z-index:30;
+  padding:20px;
+}
+#quiz .titulo{
+  font-size:clamp(20px,4.5vw,34px);
+  letter-spacing:6px;
+}
+.quizProgreso{
+  font-size:12px;
+  letter-spacing:4px;
+  color:var(--verde2);
+  opacity:.85;
+}
+.quizProgreso span{
+  color:#fff;
+  font-weight:bold;
+  font-size:15px;
+}
+.quizPregunta{
+  font-size:clamp(34px,7vw,58px);
+  font-weight:bold;
+  letter-spacing:4px;
+  color:#fff;
+  text-shadow:0 0 24px rgba(61,220,107,.75),0 4px 16px #000;
+  padding:10px 30px;
+  background:rgba(0,0,0,.45);
+  border:1px solid var(--borde);
+  min-width:260px;
+  text-align:center;
+  font-family:"Courier New",Consolas,monospace;
+}
+.quizOpciones{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  max-width:480px;
+  width:100%;
+  padding:0 12px;
+}
+.quizOpcion{
+  pointer-events:auto;
+  cursor:pointer;
+  background:linear-gradient(180deg,rgba(61,220,107,.18),rgba(61,220,107,.04));
+  border:2px solid var(--verde2);
+  color:#fff;
+  padding:16px 10px;
+  font-family:inherit;
+  font-size:clamp(20px,3.5vw,26px);
+  font-weight:bold;
+  letter-spacing:2px;
+  transition:transform .1s,background .15s,box-shadow .15s,border-color .15s;
+  box-shadow:0 0 16px rgba(61,220,107,.15) inset;
+  touch-action:manipulation;
+}
+.quizOpcion:hover{
+  background:rgba(61,220,107,.32);
+  box-shadow:0 0 24px rgba(61,220,107,.45);
+}
+.quizOpcion:active{
+  transform:scale(.96);
+}
+.quizOpcion.correcta{
+  background:linear-gradient(180deg,#3ddc6b,#1ea84a);
+  border-color:#c8ffd8;
+  box-shadow:0 0 34px rgba(61,220,107,.9);
+  animation:quizPop .38s ease-out;
+}
+.quizOpcion.incorrecta{
+  background:linear-gradient(180deg,#c02020,#7a1010);
+  border-color:#ff8080;
+  box-shadow:0 0 34px rgba(255,60,60,.8);
+  animation:quizShake .38s ease-out;
+}
+.quizFeedback{
+  font-size:clamp(14px,2.2vw,18px);
+  font-weight:bold;
+  letter-spacing:5px;
+  height:26px;
+  transition:color .2s;
+}
+.quizFeedback.ok{ color:var(--verde); text-shadow:0 0 12px rgba(141,255,171,.8); }
+.quizFeedback.err{ color:var(--rojo); text-shadow:0 0 12px rgba(255,80,80,.8); }
+@keyframes quizPop{
+  0%{ transform:scale(1); }
+  50%{ transform:scale(1.12); }
+  100%{ transform:scale(1); }
+}
+@keyframes quizShake{
+  0%,100%{ transform:translateX(0); }
+  25%{ transform:translateX(-9px); }
+  75%{ transform:translateX(9px); }
+}
 </style>
 </head>
 <body>
@@ -207,6 +315,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <button id="btnApuntar" class="btnMov">MIRA</button>
   </div>
 
+  <button id="btnPausa" title="Pausa">❚❚</button>
   <button id="btnFullscreen">⛶</button>
 
   <div id="menu" class="pantalla">
@@ -214,7 +323,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <div class="subtitulo">COMBATE MODERNO · SUPERVIVENCIA POR OLEADAS</div>
     <div class="panelInstrucciones" id="panelInstrucciones"></div>
     <button id="btnJugar" class="boton">JUGAR</button>
-    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v1.2 · THREE.JS · WEB AUDIO API</div>
+    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v1.4 · THREE.JS · WEB AUDIO API</div>
   </div>
 
   <div id="seleccionMapa" class="pantalla oculto">
@@ -243,6 +352,17 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <button id="btnCambiarMapa" class="boton secundario">CAMBIAR MAPA</button>
   </div>
 
+  <div id="quiz" class="pantalla oculto">
+    <div class="titulo">DESAFÍO MATEMÁTICO</div>
+    <div class="subtitulo">RESPONDE PARA CONTINUAR LA MISIÓN</div>
+    <div class="quizProgreso">
+      PREGUNTA <span id="quizNum">1</span> / 5 · ACIERTOS: <span id="quizAciertos">0</span>
+    </div>
+    <div class="quizPregunta" id="quizPregunta">7 × 8 = ?</div>
+    <div class="quizOpciones" id="quizOpciones"></div>
+    <div class="quizFeedback" id="quizFeedback"></div>
+  </div>
+
   <div id="avisoVertical">📱 GIRA EL DISPOSITIVO<br>PARA JUGAR EN HORIZONTAL</div>
 </div>
 
@@ -258,6 +378,14 @@ const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
 const lerp  = (a,b,t)=> a+(b-a)*t;
 const rand  = (a,b)=> a+Math.random()*(b-a);
 const V3 = (x,y,z)=> new THREE.Vector3(x||0,y||0,z||0);
+function randInt(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+function shuffle(arr){
+  for(let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr;
+}
 
 /* ============================================================
    1. CONFIG
@@ -282,7 +410,7 @@ const CONFIG = {
   MAX_TRAZADORAS:  44,
   OLEADA_BASE:     4,
   OLEADA_INCREMENTO:2,
-  INTERMEDIO:      5.0
+  INTERMEDIO:      2.0
 };
 
 /* ============================================================
@@ -430,6 +558,13 @@ const Audio3D = {
     this.tono(330,0.16,0.16,'square');
     setTimeout(()=>this.tono(440,0.16,0.16,'square'),170);
     setTimeout(()=>this.tono(660,0.30,0.18,'square'),340);
+  },
+  correcto(){
+    this.tono(880,0.09,0.14,'triangle');
+    setTimeout(()=>this.tono(1320,0.14,0.14,'triangle'),90);
+  },
+  incorrecto(){
+    this.tono(220,0.20,0.18,'sawtooth',90);
   },
   ambiente(){
     if(!this.ctx) return;
@@ -1998,6 +2133,17 @@ const Estado = {
 
 let mapaSeleccionado = 0;
 
+/* --- Botón de pausa visible sólo en móvil durante la partida --- */
+function actualizarBotonPausa(){
+  const btn = document.getElementById('btnPausa');
+  if(!btn) return;
+  if(ES_MOVIL && Estado.fase === 'jugando'){
+    btn.style.display = 'flex';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
 function iniciarPartida(){
   limpiarMapa();
   limpiarEfectos();
@@ -2027,6 +2173,7 @@ function iniciarPartida(){
   document.getElementById('seleccionMapa').classList.add('oculto');
   document.getElementById('gameover').classList.add('oculto');
   document.getElementById('pausa').classList.add('oculto');
+  document.getElementById('quiz').classList.add('oculto');
   document.getElementById('hud').classList.remove('oculto');
   document.getElementById('crosshair').classList.add('activa');
   if(ES_MOVIL) document.getElementById('controlesMovil').classList.remove('oculto');
@@ -2038,6 +2185,7 @@ function iniciarPartida(){
   iniciarOleada(1);
   pedirBloqueo();
   actualizarAvisoRaton();
+  actualizarBotonPausa();
   Audio3D.reanudar();
 }
 
@@ -2050,6 +2198,7 @@ function pausar(){
   Input.arrastre = false;
   Movil.disparando = false; Movil.apuntando = false;
   actualizarAvisoRaton();
+  actualizarBotonPausa();
   if(document.pointerLockElement) document.exitPointerLock();
 }
 
@@ -2060,6 +2209,7 @@ function reanudar(){
   document.getElementById('crosshair').classList.add('activa');
   pedirBloqueo();
   actualizarAvisoRaton();
+  actualizarBotonPausa();
   Audio3D.reanudar();
 }
 
@@ -2073,6 +2223,7 @@ function terminarPartida(){
   document.getElementById('gameover').classList.remove('oculto');
   document.getElementById('controlesMovil').classList.add('oculto');
   actualizarAvisoRaton();
+  actualizarBotonPausa();
   if(document.pointerLockElement) document.exitPointerLock();
 }
 
@@ -2148,9 +2299,199 @@ function actualizarOleadas(dt){
     Estado.tIntermedio -= dt;
     if(Estado.tIntermedio <= 0){
       Estado.intermedio = false;
-      iniciarOleada(Estado.oleada + 1);
+      iniciarQuiz();
     }
   }
+}
+
+/* ============================================================
+   13b. DESAFÍO MATEMÁTICO
+   ============================================================ */
+const quizState = {
+  preguntas: [],
+  idx: 0,
+  aciertos: 0,
+  fallos: 0,
+  bloqueado: false,
+  activo: false
+};
+
+function generarPreguntas(cantidad){
+  const preguntas = [];
+  for(let i = 0; i < cantidad; i++){
+    let a, b;
+    if(i < 2){
+      a = randInt(2, 6); b = randInt(2, 6);
+    } else if(i < 4){
+      a = randInt(5, 9); b = randInt(5, 9);
+    } else {
+      a = randInt(6, 12); b = randInt(6, 12);
+    }
+    if(Math.random() < 0.5){ const t = a; a = b; b = t; }
+    const correcta = a * b;
+    const opciones = generarOpciones(a, b, correcta);
+    preguntas.push({ a: a, b: b, correcta: correcta, opciones: opciones });
+  }
+  return preguntas;
+}
+
+function generarOpciones(a, b, correcta){
+  const candidatos = [
+    (a + 1) * b,
+    (a - 1) * b,
+    a * (b + 1),
+    a * (b - 1),
+    correcta + 1,
+    correcta - 1,
+    correcta + a,
+    correcta - a,
+    correcta + b,
+    correcta - b
+  ].filter(function(n){ return n > 0 && n !== correcta; });
+
+  const unicos = [];
+  for(let i = 0; i < candidatos.length; i++){
+    if(unicos.indexOf(candidatos[i]) === -1) unicos.push(candidatos[i]);
+  }
+  shuffle(unicos);
+
+  const opciones = [correcta];
+  for(let i = 0; i < unicos.length && opciones.length < 4; i++){
+    opciones.push(unicos[i]);
+  }
+  let guard = 0;
+  while(opciones.length < 4 && guard < 200){
+    guard++;
+    const fake = correcta + randInt(-20, 20);
+    if(fake > 0 && opciones.indexOf(fake) === -1) opciones.push(fake);
+  }
+  shuffle(opciones);
+  return opciones;
+}
+
+function iniciarQuiz(){
+  document.getElementById('mensaje').style.opacity = '0';
+  document.getElementById('submensaje').style.opacity = '0';
+  mensajeT = 0;
+
+  quizState.preguntas = generarPreguntas(5);
+  quizState.idx = 0;
+  quizState.aciertos = 0;
+  quizState.fallos = 0;
+  quizState.bloqueado = false;
+  quizState.activo = true;
+
+  Jugador.vel.x = 0;
+  Jugador.vel.z = 0;
+  Input.dx = 0;
+  Input.dy = 0;
+  Input.ratonIzq = false;
+  Input.ratonDer = false;
+  Input.arrastre = false;
+  Movil.disparando = false;
+  Movil.apuntando = false;
+  Movil.saltar = false;
+  Movil.joyX = 0;
+  Movil.joyY = 0;
+
+  Estado.fase = 'quiz';
+  document.getElementById('crosshair').classList.remove('activa');
+  document.getElementById('scope').classList.remove('activa');
+  document.getElementById('controlesMovil').classList.add('oculto');
+  document.getElementById('quiz').classList.remove('oculto');
+  actualizarAvisoRaton();
+  actualizarBotonPausa();
+
+  if(document.pointerLockElement) document.exitPointerLock();
+  Audio3D.reanudar();
+
+  mostrarPreguntaQuiz();
+}
+
+function mostrarPreguntaQuiz(){
+  const p = quizState.preguntas[quizState.idx];
+  document.getElementById('quizNum').textContent = quizState.idx + 1;
+  document.getElementById('quizAciertos').textContent = quizState.aciertos;
+  document.getElementById('quizPregunta').textContent = p.a + ' × ' + p.b + ' = ?';
+
+  const cont = document.getElementById('quizOpciones');
+  let html = '';
+  for(let i = 0; i < p.opciones.length; i++){
+    html += '<button class="quizOpcion" data-val="' + p.opciones[i] + '">' + p.opciones[i] + '</button>';
+  }
+  cont.innerHTML = html;
+
+  const btns = cont.querySelectorAll('.quizOpcion');
+  for(let i = 0; i < btns.length; i++){
+    btns[i].addEventListener('click', function(){
+      responderQuiz(parseInt(this.getAttribute('data-val'), 10), this);
+    });
+  }
+
+  const fb = document.getElementById('quizFeedback');
+  fb.textContent = '';
+  fb.className = 'quizFeedback';
+}
+
+function responderQuiz(valor, btn){
+  if(quizState.bloqueado) return;
+  const p = quizState.preguntas[quizState.idx];
+
+  if(valor === p.correcta){
+    quizState.bloqueado = true;
+    btn.classList.add('correcta');
+    quizState.aciertos++;
+    document.getElementById('quizAciertos').textContent = quizState.aciertos;
+
+    const fb = document.getElementById('quizFeedback');
+    fb.textContent = '✓ ¡CORRECTO!';
+    fb.className = 'quizFeedback ok';
+    Audio3D.correcto();
+
+    setTimeout(function(){
+      quizState.idx++;
+      quizState.bloqueado = false;
+      if(quizState.idx >= quizState.preguntas.length){
+        finalizarQuiz();
+      } else {
+        mostrarPreguntaQuiz();
+      }
+    }, 750);
+  } else {
+    btn.classList.add('incorrecta');
+    quizState.fallos++;
+
+    const fb = document.getElementById('quizFeedback');
+    fb.textContent = '✕ INTÉNTALO DE NUEVO';
+    fb.className = 'quizFeedback err';
+    Audio3D.incorrecto();
+
+    setTimeout(function(){
+      btn.classList.remove('incorrecta');
+    }, 650);
+  }
+}
+
+function finalizarQuiz(){
+  quizState.activo = false;
+
+  if(quizState.fallos === 0){
+    Estado.puntos += 500;
+    actualizarHUDStats();
+  }
+
+  document.getElementById('quiz').classList.add('oculto');
+
+  Estado.fase = 'jugando';
+  document.getElementById('crosshair').classList.add('activa');
+  if(ES_MOVIL) document.getElementById('controlesMovil').classList.remove('oculto');
+
+  pedirBloqueo();
+  actualizarAvisoRaton();
+  actualizarBotonPausa();
+  Audio3D.reanudar();
+
+  iniciarOleada(Estado.oleada + 1);
 }
 
 /* ============================================================
@@ -2524,6 +2865,7 @@ function construirInstrucciones(){
     ['Botón RECARGAR', 'Recargar'],
     ['Botón MIRA', 'Apuntar (ADS)'],
     ['Botón ARMA', 'Cambiar de arma'],
+    ['❚❚ (arriba izq.)', 'Pausar el juego'],
     ['⛶ (arriba dcha.)', 'Pantalla completa']
   ] : [
     ['W A S D', 'Moverse'],
@@ -2542,6 +2884,10 @@ function construirInstrucciones(){
   for(let i=0;i<filas.length;i++){
     html += '<div class="fila"><span><b>' + filas[i][0] + '</b></span><span>' + filas[i][1] + '</span></div>';
   }
+  html += '<div class="fila" style="margin-top:8px;border-top:1px solid rgba(141,255,171,.2);padding-top:8px">'
+       +    '<span><b>✖️ DESAFÍO MATEMÁTICO</b></span>'
+       +    '<span>5 multiplicaciones al final de cada oleada</span>'
+       +  '</div>';
   cont.innerHTML = html;
 }
 
@@ -2557,6 +2903,7 @@ function mostrarSeleccionMapa(){
   document.getElementById('controlesMovil').classList.add('oculto');
   document.getElementById('crosshair').classList.remove('activa');
   document.getElementById('seleccionMapa').classList.remove('oculto');
+  actualizarBotonPausa();
   if(document.pointerLockElement) document.exitPointerLock();
 }
 
@@ -2569,6 +2916,7 @@ function mostrarMenuPrincipal(){
   document.getElementById('controlesMovil').classList.add('oculto');
   document.getElementById('crosshair').classList.remove('activa');
   document.getElementById('menu').classList.remove('oculto');
+  actualizarBotonPausa();
 }
 
 function construirListaMapas(){
@@ -2608,7 +2956,6 @@ function init(){
   construirInstrucciones();
   construirListaMapas();
 
-  // Construir mapa de fondo para el menú
   aplicarEntornoMapa(MAPAS[0]);
   MAPAS[0].construir();
 
@@ -2632,6 +2979,16 @@ function init(){
   document.getElementById('btnReiniciarPausa').addEventListener('click', function(){ iniciarPartida(); });
   document.getElementById('btnReintentar').addEventListener('click', function(){ iniciarPartida(); });
   document.getElementById('btnCambiarMapa').addEventListener('click', function(){ mostrarSeleccionMapa(); });
+
+  // Botón de pausa (móvil)
+  const btnPausa = document.getElementById('btnPausa');
+  function manejarPausa(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    if(Estado.fase === 'jugando') pausar();
+    else if(Estado.fase === 'pausa') reanudar();
+  }
+  btnPausa.addEventListener('pointerdown', manejarPausa, {passive:false});
+  btnPausa.addEventListener('click', function(ev){ ev.preventDefault(); });
 
   document.getElementById('btnFullscreen').addEventListener('click', function(){
     const doc = document.documentElement;
