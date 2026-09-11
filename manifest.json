@@ -1,7 +1,7 @@
 {
   "name": "Operación Arena - FPS",
   "short_name": "Op. Arena",
-  "start_url": "./Juego.html",
+  "start_url": "./index.html",
   "display": "fullscreen",
   "background_color": "#000000",
   "theme_color": "#0a0f0c",
