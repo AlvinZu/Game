@@ -70,9 +70,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #vignette{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 35%,rgba(180,0,0,.85) 100%);transition:opacity .18s linear;}
 #danoFlash{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,40,40,.25) 0%,rgba(255,0,0,.6) 100%);}
 
-/* ==========================================
-   FRANCOTIRADOR — VISIBILIDAD MEJORADA
-   ========================================== */
 #scope{
   position:absolute;inset:0;pointer-events:none;
   opacity:0;transition:opacity .12s;
@@ -372,7 +369,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <div class="subtitulo">COMBATE MODERNO · SUPERVIVENCIA POR OLEADAS</div>
     <div class="panelInstrucciones" id="panelInstrucciones"></div>
     <button id="btnJugar" class="boton">JUGAR</button>
-    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v2.0 · THREE.JS · WEB AUDIO API</div>
+    <div style="font-size:11px;letter-spacing:3px;opacity:.45;margin-top:6px">v2.1 · THREE.JS · WEB AUDIO API</div>
   </div>
 
   <div id="seleccionMapa" class="pantalla oculto">
@@ -719,7 +716,7 @@ const Movil = {
   idJoystick:null, idMirar:null,
   centroX:0, centroY:0, ultimoX:0, ultimoY:0,
   disparando:false,
-  apuntando:false,       // ← TOGGLE: se activa/desactiva con cada toque
+  apuntando:false,
   saltar:false
 };
 
@@ -835,12 +832,11 @@ function actualizarAvisoRaton(){
 }
 
 /* ============================================================
-   4b. TOGGLE DE MIRA (móvil + cambio de arma)
+   4b. TOGGLE DE MIRA
    ============================================================ */
 function toggleAim(){
   Movil.apuntando = !Movil.apuntando;
   actualizarBotonApuntar();
-  // pequeño feedback sonoro
   Audio3D.tono(Movil.apuntando ? 900 : 500, 0.05, 0.05, 'square', Movil.apuntando ? 1200 : 350);
 }
 
@@ -959,24 +955,24 @@ const MAPAS = [
     construir: construirArtica
   },
   {
-    id:'playa', nombre:'PLAYA TROPICAL', dificultad:'FÁCIL', nivel:'facil',
-    desc:'Playa abierta bajo el sol. Palmeras, sombrillas y mucha visibilidad.',
-    cielo:['#2a78b8','#4aa8d8','#7bc8e8','#c8e0e8','#f0e0b8','#d8b888'],
-    fog:{ color:0xe8d8a8, near:50, far:180 },
-    hemi:{ sky:0xa8d8f0, ground:0xd8c090, intensity:1.00 },
-    sol:{ color:0xfff0c0, intensity:1.15, pos:[40,80,20] },
-    relleno:{ color:0x88aacc, intensity:0.35, pos:[-30,20,-30] },
-    construir: construirPlaya
+    id:'barco', nombre:'CARGUERO PIRATA', dificultad:'NORMAL', nivel:'normal',
+    desc:'Cubierta de un gran carguero en alta mar. Contenedores apilados, puente de mando y agua alrededor.',
+    cielo:['#1e2a3a','#2e4a5a','#4a6a7a','#6a8aa0','#8aa8b8','#4a6a7a'],
+    fog:{ color:0x5a7a8a, near:35, far:140 },
+    hemi:{ sky:0x8aa8c0, ground:0x3a4a5a, intensity:0.78 },
+    sol:{ color:0xdde8f5, intensity:1.0, pos:[50,70,-30] },
+    relleno:{ color:0x5577aa, intensity:0.38, pos:[-30,25,30] },
+    construir: construirBarco
   },
   {
-    id:'trigo', nombre:'CAMPO DE TRIGO', dificultad:'FÁCIL', nivel:'facil',
-    desc:'Campo dorado junto a un granero. Visibilidad amplia con cobertura dispersa.',
-    cielo:['#5080c0','#80a8d0','#b8d0e0','#f0d890','#e8b860','#a88040'],
-    fog:{ color:0xe8c888, near:45, far:170 },
-    hemi:{ sky:0xf0e0b0, ground:0xa08040, intensity:0.95 },
-    sol:{ color:0xffe8a0, intensity:1.15, pos:[30,70,-40] },
-    relleno:{ color:0xaab0cc, intensity:0.30, pos:[-40,20,30] },
-    construir: construirTrigo
+    id:'selva', nombre:'RUINAS EN LA SELVA', dificultad:'NORMAL', nivel:'normal',
+    desc:'Antiguo templo perdido entre la vegetación. Árboles gigantes, enredaderas y neblina verde.',
+    cielo:['#1a2a15','#2a4020','#405a2a','#60803a','#88a04a','#3a5028'],
+    fog:{ color:0x4a6a3a, near:18, far:95 },
+    hemi:{ sky:0x9ac870, ground:0x2a3a1a, intensity:0.82 },
+    sol:{ color:0xe8ffb8, intensity:1.05, pos:[30,65,-25] },
+    relleno:{ color:0x608840, intensity:0.45, pos:[-35,20,25] },
+    construir: construirSelva
   }
 ];
 
@@ -1031,6 +1027,106 @@ function texturaTierra(){
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(14,14);
+  return t;
+}
+
+/* --- NUEVAS TEXTURAS --- */
+function texturaMadera(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  // Base marrón
+  g.fillStyle = '#6b4520'; g.fillRect(0,0,512,512);
+  // Vetas verticales con variación
+  for(let i=0;i<5200;i++){
+    const v = Math.floor(rand(60,110));
+    g.fillStyle = 'rgba('+v+','+(v-30)+','+(v-50)+',0.35)';
+    g.fillRect(Math.random()*512, Math.random()*512, Math.random()*18+4, 1);
+  }
+  // Tablones horizontales con líneas oscuras
+  g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 3;
+  for(let y=0;y<512;y+=42){
+    g.beginPath(); g.moveTo(0,y); g.lineTo(512,y); g.stroke();
+    // sombra clara debajo
+    g.strokeStyle = 'rgba(255,220,180,0.10)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0,y+2); g.lineTo(512,y+2); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 3;
+  }
+  // Junta vertical ocasional
+  for(let x=0;x<512;x+=128){
+    g.strokeStyle = 'rgba(0,0,0,0.4)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(x,0); g.lineTo(x,512); g.stroke();
+  }
+  // Clavos / manchas
+  for(let i=0;i<40;i++){
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.beginPath(); g.arc(Math.random()*512, Math.random()*512, Math.random()*3+1, 0, Math.PI*2); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(6,6);
+  return t;
+}
+
+function texturaAgua(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  // Base azul verdosa
+  const grad = g.createLinearGradient(0,0,0,512);
+  grad.addColorStop(0, '#1a4055');
+  grad.addColorStop(0.5, '#20586a');
+  grad.addColorStop(1, '#1a4055');
+  g.fillStyle = grad; g.fillRect(0,0,512,512);
+  // Oleaje horizontal
+  for(let i=0;i<3000;i++){
+    const v = Math.floor(rand(60,150));
+    g.fillStyle = 'rgba('+(v-30)+','+(v+30)+','+(v+60)+',0.35)';
+    const w = Math.random()*40+8;
+    g.fillRect(Math.random()*512, Math.random()*512, w, 1.5);
+  }
+  // Reflejos blancos
+  for(let i=0;i<400;i++){
+    g.fillStyle = 'rgba(220,240,255,0.22)';
+    const w = Math.random()*18+3;
+    g.fillRect(Math.random()*512, Math.random()*512, w, 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(12,12);
+  return t;
+}
+
+function texturaJungla(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  // Base verde tierra
+  g.fillStyle = '#2a3a1a'; g.fillRect(0,0,512,512);
+  // Manchas de musgo claro
+  for(let i=0;i<600;i++){
+    const v = Math.floor(rand(40,90));
+    g.fillStyle = 'rgba('+(v-10)+','+(v+20)+','+(v-25)+',0.5)';
+    g.beginPath();
+    g.arc(Math.random()*512, Math.random()*512, Math.random()*25+8, 0, Math.PI*2);
+    g.fill();
+  }
+  // Hojas y briznas
+  for(let i=0;i<4000;i++){
+    const v = Math.floor(rand(25,80));
+    g.fillStyle = 'rgba('+(v-5)+','+(v+30)+','+(v-15)+',0.6)';
+    g.fillRect(Math.random()*512, Math.random()*512, 3, 2);
+  }
+  // Manchas oscuras (tierra húmeda)
+  for(let i=0;i<200;i++){
+    g.fillStyle = 'rgba(10,15,5,0.4)';
+    g.beginPath();
+    g.arc(Math.random()*512, Math.random()*512, Math.random()*18+5, 0, Math.PI*2);
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(8,8);
   return t;
 }
 
@@ -1331,120 +1427,324 @@ function construirArtica(){
 }
 
 /* ============================================================
-   MAPA 5 — PLAYA TROPICAL (FÁCIL)
+   MAPA 5 — CARGUERO PIRATA (NORMAL)
    ============================================================ */
-function construirPlaya(){
+function construirBarco(){
   const A = CONFIG.ARENA;
 
-  const sueloMat = new THREE.MeshLambertMaterial({ color: 0xf0d8a0 });
-  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
-  suelo.rotation.x = -Math.PI/2;
-  suelo.receiveShadow = true;
-  mapaGroup.add(suelo);
+  // Océano alrededor (bien grande y bajo el barco)
+  const aguaMat = new THREE.MeshLambertMaterial({ map: texturaAgua(), color: 0x88aacc });
+  const agua = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), aguaMat);
+  agua.rotation.x = -Math.PI/2;
+  agua.position.y = -3.5;
+  agua.receiveShadow = true;
+  mapaGroup.add(agua);
 
-  for(let x=-A; x<=A; x+=4){
-    agregarCaja(x, 0, -A, 3.5, rand(1.6, 2.6), 1.5, 0x8a8070);
-    agregarCaja(x, 0,  A, 3.5, rand(1.6, 2.6), 1.5, 0x8a8070);
+  // Cubierta de madera del barco
+  const cubiertaMat = new THREE.MeshLambertMaterial({ map: texturaMadera(), color: 0xb08a60 });
+  const cubierta = new THREE.Mesh(new THREE.PlaneGeometry(A*2, A*2), cubiertaMat);
+  cubierta.rotation.x = -Math.PI/2;
+  cubierta.receiveShadow = true;
+  mapaGroup.add(cubierta);
+
+  // ===== CASCO EXTERIOR (muros metálicos) =====
+  const casco = 0x50505a;
+  const cascoAlto = 0x3a3a44;
+  // Babor / Estribor / Proa / Popa con refuerzos
+  agregarCaja( 0, 0, -A, A*2+2, 2.8, 1.6, casco);
+  agregarCaja( 0, 0,  A, A*2+2, 2.8, 1.6, casco);
+  agregarCaja(-A, 0,  0, 1.6, 2.8, A*2+2, casco);
+  agregarCaja( A, 0,  0, 1.6, 2.8, A*2+2, casco);
+  // Franja oscura decorativa por encima
+  agregarCaja( 0, 2.8, -A, A*2+2, 0.4, 1.7, cascoAlto, {solido:false});
+  agregarCaja( 0, 2.8,  A, A*2+2, 0.4, 1.7, cascoAlto, {solido:false});
+  agregarCaja(-A, 2.8,  0, 1.7, 0.4, A*2+2, cascoAlto, {solido:false});
+  agregarCaja( A, 2.8,  0, 1.7, 0.4, A*2+2, cascoAlto, {solido:false});
+
+  // ===== BARANDILLAS (postes verticales + barra horizontal) =====
+  const colorBarandilla = 0x9a9aa8;
+  for(let i=-A+3; i<=A-3; i+=3){
+    agregarCaja(i, 0, -A+1.8, 0.14, 1.2, 0.14, colorBarandilla, {solido:false});
+    agregarCaja(i, 0,  A-1.8, 0.14, 1.2, 0.14, colorBarandilla, {solido:false});
   }
-  for(let z=-A; z<=A; z+=4){
-    agregarCaja(-A, 0, z, 1.5, rand(1.6, 2.6), 3.5, 0x8a8070);
-    agregarCaja( A, 0, z, 1.5, rand(1.6, 2.6), 3.5, 0x8a8070);
+  for(let i=-A+3; i<=A-3; i+=3){
+    agregarCaja(-A+1.8, 0, i, 0.14, 1.2, 0.14, colorBarandilla, {solido:false});
+    agregarCaja( A-1.8, 0, i, 0.14, 1.2, 0.14, colorBarandilla, {solido:false});
   }
+  // Barra horizontal superior
+  agregarCaja(0, 1.1, -A+1.8, A*2-5, 0.10, 0.10, colorBarandilla, {solido:false});
+  agregarCaja(0, 1.1,  A-1.8, A*2-5, 0.10, 0.10, colorBarandilla, {solido:false});
+  agregarCaja(-A+1.8, 1.1, 0, 0.10, 0.10, A*2-5, colorBarandilla, {solido:false});
+  agregarCaja( A-1.8, 1.1, 0, 0.10, 0.10, A*2-5, colorBarandilla, {solido:false});
 
-  for(let i=0; i<10; i++){
-    const x = rand(-24, 24), z = rand(-24, 24);
-    if(Math.hypot(x, z) < 5) continue;
-    const alto = rand(4.5, 7.5);
-    agregarCaja(x, 0, z, 0.5, alto, 0.5, 0x6b4a2a);
-    agregarCaja(x, alto, z, 3.5, 0.5, 3.5, 0x3a7a3a, {solido:false});
-    agregarCaja(x, alto+0.4, z, 2.6, 0.4, 2.6, 0x4a8a4a, {solido:false});
+  // ===== PUENTE DE MANDO (proa) =====
+  const colorPuente = 0x6a6a78;
+  agregarCaja(0, 0, -20, 14, 7, 9, colorPuente);
+  agregarCaja(0, 7, -20, 15, 0.6, 10, 0x50505a, {solido:false});
+  // Ventanas del puente
+  const colorVentana = 0x1a2432;
+  for(let i=-2; i<=2; i++){
+    agregarCaja(i*2, 4, -15.4, 1.4, 1.4, 0.15, colorVentana, {solido:false});
   }
-
-  const coloresUmb = [0xff4040, 0x40a0ff, 0xffaa40, 0x40d090];
-  for(let i=0; i<8; i++){
-    const x = rand(-22, 22), z = rand(-22, 22);
-    if(Math.hypot(x, z) < 5) continue;
-    agregarCaja(x, 0, z, 0.18, 2.4, 0.18, 0xaaaaaa);
-    agregarCaja(x, 2.4, z, 3.4, 0.28, 3.4, coloresUmb[i % coloresUmb.length], {solido:false});
-  }
-
-  for(let i=0; i<20; i++){
-    const x = rand(-26, 26), z = rand(-26, 26);
-    if(Math.hypot(x, z) < 4) continue;
-    const s = rand(0.8, 2.0);
-    agregarCaja(x, 0, z, s, s*0.7, s, 0x8a8070);
-  }
-
-  for(let i=0; i<8; i++){
-    const x = rand(-22, 22), z = rand(-22, 22);
-    if(Math.hypot(x, z) < 5) continue;
-    const s = rand(1.2, 2.0);
-    agregarCaja(x, 0, z, s, s, s, 0xa07850);
-  }
-
-  for(let i=0; i<10; i++){
-    const x = rand(-24, 24), z = rand(-24, 24);
-    if(Math.hypot(x, z) < 4) continue;
-    agregarCaja(x, 0, z, 1.0, 1.6, 1.0, 0x8a5a2a);
-  }
-}
-
-/* ============================================================
-   MAPA 6 — CAMPO DE TRIGO (FÁCIL)
-   ============================================================ */
-function construirTrigo(){
-  const A = CONFIG.ARENA;
-
-  const sueloMat = new THREE.MeshLambertMaterial({ color: 0xd8b060 });
-  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
-  suelo.rotation.x = -Math.PI/2;
-  suelo.receiveShadow = true;
-  mapaGroup.add(suelo);
-
-  for(let x=-A; x<=A; x+=3){
-    agregarCaja(x, 0, -A, 0.25, 1.4, 0.25, 0x6b4a2a);
-    agregarCaja(x, 0,  A, 0.25, 1.4, 0.25, 0x6b4a2a);
-  }
-  for(let z=-A; z<=A; z+=3){
-    agregarCaja(-A, 0, z, 0.25, 1.4, 0.25, 0x6b4a2a);
-    agregarCaja( A, 0, z, 0.25, 1.4, 0.25, 0x6b4a2a);
+  // Ventanas laterales
+  for(let i=0; i<3; i++){
+    agregarCaja(-7.05, 4, -20 + (i-1)*2.4, 0.15, 1.4, 1.4, colorVentana, {solido:false});
+    agregarCaja( 7.05, 4, -20 + (i-1)*2.4, 0.15, 1.4, 1.4, colorVentana, {solido:false});
   }
 
-  agregarCaja(-18, 0, -18, 10, 6, 8, 0x8a2a2a);
-  agregarCaja(-18, 6, -18, 11, 0.5, 9, 0x5a1a1a, {solido:false});
-  agregarCaja(-18, 0, -14.05, 3, 4, 0.2, 0x3a1a1a, {solido:false});
-  agregarCaja(-18, 4.2, -14.05, 3.2, 0.3, 0.25, 0xc8a030, {solido:false});
+  // ===== CHIMENEA (smokestack) =====
+  agregarCaja(0, 7.5, -20, 3, 5, 3, 0x2a2a30);
+  agregarCaja(0, 10.5, -20, 3.2, 0.6, 3.2, 0x8a2020, {solido:false});
+  agregarCaja(0, 12.5, -20, 3.2, 0.6, 3.2, 0x8a2020, {solido:false});
 
-  agregarCaja(20, 0, -20, 4, 12, 4, 0x888888);
-  agregarCaja(20, 12, -20, 4.5, 0.4, 4.5, 0x666666, {solido:false});
-
-  for(let i=0; i<14; i++){
-    const x = rand(-24, 24), z = rand(-24, 24);
-    if(Math.hypot(x, z) < 5) continue;
-    const horiz = Math.random() > 0.5;
-    const w = horiz ? 2.4 : 1.6;
-    const d = horiz ? 1.6 : 2.4;
-    agregarCaja(x, 0, z, w, 1.5, d, 0xd8b040);
-    if(Math.random() > 0.55){
-      agregarCaja(x, 1.5, z, w, 1.5, d, 0xc8a030);
+  // ===== CONTENEDORES APILADOS =====
+  const colCont = [0x8a3b2e, 0x2e5a8a, 0x3f7a45, 0x8a742e, 0x5a3f7a, 0xc07a2a, 0x2a7a7a];
+  const posCont = [
+    { x:-15, z: -8, stack:2 },
+    { x:-15, z:  0, stack:1 },
+    { x: 15, z:-10, stack:3 },
+    { x: 15, z: -2, stack:1 },
+    { x:-10, z: 12, stack:2 },
+    { x: 10, z: 14, stack:1 },
+    { x: 17, z:  6, stack:2 },
+    { x:-17, z:  8, stack:1 },
+    { x:  4, z: -8, stack:1 },
+    { x: -4, z: 15, stack:2 }
+  ];
+  for(let i=0; i<posCont.length; i++){
+    const p = posCont[i];
+    const horiz = i % 2 === 0;
+    const w = horiz ? 6 : 2.8;
+    const d = horiz ? 2.8 : 6;
+    for(let s=0; s<p.stack; s++){
+      const color = colCont[(i + s) % colCont.length];
+      agregarCaja(p.x, s*2.8, p.z, w, 2.8, d, color);
+      // Puertas del contenedor (líneas verticales decorativas)
+      if(s === 0){
+        agregarCaja(p.x - w*0.4, 0, p.z, 0.1, 2.6, d*0.95, 0x000000, {solido:false});
+        agregarCaja(p.x + w*0.4, 0, p.z, 0.1, 2.6, d*0.95, 0x000000, {solido:false});
+      }
     }
   }
 
-  for(let i=0; i<6; i++){
-    const x = rand(-22, 22), z = rand(-22, 22);
-    if(Math.hypot(x, z) < 5) continue;
-    agregarCaja(x, 0, z, 0.6, 4, 0.6, 0x5a3a1a);
-    agregarCaja(x, 4, z, 3.5, 0.6, 3.5, 0x4a7a3a, {solido:false});
-    agregarCaja(x, 4.6, z, 2.5, 0.5, 2.5, 0x5a8a4a, {solido:false});
+  // ===== GRÚA / MASTIL con cables =====
+  agregarCaja(20, 0, -25, 0.6, 12, 0.6, 0xb0a060);
+  agregarCaja(20, 12, -25, 0.4, 3, 0.4, 0xb0a060, {solido:false});
+  // Cables de la grúa (líneas diagonales)
+  for(let i=0; i<3; i++){
+    const len = 6 + i;
+    agregarCaja(20, 12 - i*0.3, -25 + len/2, 0.08, 0.08, len, 0x1a1a1a, {solido:false});
   }
 
-  for(let i=0; i<10; i++){
+  // ===== BARRILES (oil drums) =====
+  for(let i=0; i<16; i++){
     const x = rand(-24, 24), z = rand(-24, 24);
-    if(Math.hypot(x, z) < 5) continue;
+    if(Math.hypot(x, z+20) < 12) continue; // lejos del puente
+    if(Math.hypot(x, z) < 4) continue;
+    const s = 0.95;
+    const col = i % 3 === 0 ? 0x8a3030 : (i % 3 === 1 ? 0x2a4a8a : 0xc0a030);
+    agregarCaja(x, 0, z, s, s*1.4, s, col);
+    // Aro superior
+    agregarCaja(x, s*1.4, z, s*1.05, 0.08, s*1.05, 0x1a1a1a, {solido:false});
+  }
+
+  // ===== CAJAS DE MADERA =====
+  for(let i=0; i<20; i++){
+    const x = rand(-25, 25), z = rand(-25, 25);
+    if(Math.hypot(x, z+20) < 12) continue;
+    if(Math.hypot(x, z) < 4) continue;
+    const s = rand(1.0, 1.7);
+    agregarCaja(x, 0, z, s, s, s, 0x9a7a4e);
+    // Refuerzo decorativo
+    if(Math.random() > 0.5){
+      agregarCaja(x, s*0.5, z, s*1.02, 0.1, s*0.4, 0x5a3a20, {solido:false});
+    }
+  }
+
+  // ===== SALVAVIDAS (aros rojos/blancos) =====
+  for(let i=0; i<6; i++){
+    const x = rand(-22, 22);
+    const z = (i % 2 === 0) ? -A+2.2 : A-2.2;
+    agregarCaja(x, 0.6, z, 0.9, 0.9, 0.15, 0xff4040, {solido:false});
+    agregarCaja(x, 0.6, z + (i%2===0?0.1:-0.1), 0.4, 0.4, 0.05, 0xffffff, {solido:false});
+  }
+
+  // ===== ESCALERAS AL PUENTE =====
+  for(let i=0; i<5; i++){
+    agregarCaja(8.2, i*0.6, -18 + i*0.3, 1.4, 0.15, 0.5, 0x606068);
+  }
+
+  // ===== POSTES DE LUZ =====
+  const posPostes = [[-22, -22], [22, -22], [-22, 22], [22, 22], [0, 22]];
+  for(let i=0; i<posPostes.length; i++){
+    agregarCaja(posPostes[i][0], 0, posPostes[i][1], 0.3, 5, 0.3, 0x808088);
+    agregarCaja(posPostes[i][0], 5, posPostes[i][1], 0.6, 0.4, 0.6, 0xd0d0d0, {solido:false});
+    // Bombilla
+    agregarCaja(posPostes[i][0], 5.2, posPostes[i][1], 0.4, 0.3, 0.4, 0xffff80, {solido:false});
+  }
+
+  // ===== SISTEMA DE TUBERÍAS (decorativo) =====
+  agregarCaja(-A+2.2, 0.8, 0, 0.3, 0.3, A*2-6, 0x6a6a72, {solido:false});
+  agregarCaja( A-2.2, 0.8, 0, 0.3, 0.3, A*2-6, 0x6a6a72, {solido:false});
+}
+
+/* ============================================================
+   MAPA 6 — RUINAS EN LA SELVA (NORMAL)
+   ============================================================ */
+function construirSelva(){
+  const A = CONFIG.ARENA;
+
+  // Suelo de tierra/musgo
+  const sueloMat = new THREE.MeshLambertMaterial({ map: texturaJungla(), color: 0x8ab060 });
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), sueloMat);
+  suelo.rotation.x = -Math.PI/2;
+  suelo.receiveShadow = true;
+  mapaGroup.add(suelo);
+
+  // ===== MUROS PERIMETRALES DE PIEDRA CUBIERTA DE MUSGO =====
+  const muroMat = 0x5a6a4a;
+  const musgoMat = 0x3a5a2a;
+  for(let x=-A; x<=A; x+=4){
+    const h = rand(3, 6);
+    agregarCaja(x, 0, -A, 4, h, 1.6, muroMat);
+    agregarCaja(x, h, -A, 4.1, 0.4, 1.7, musgoMat, {solido:false});
+    const h2 = rand(3, 6);
+    agregarCaja(x, 0,  A, 4, h2, 1.6, muroMat);
+    agregarCaja(x, h2, A, 4.1, 0.4, 1.7, musgoMat, {solido:false});
+  }
+  for(let z=-A; z<=A; z+=4){
+    const h = rand(3, 6);
+    agregarCaja(-A, 0, z, 1.6, h, 4, muroMat);
+    agregarCaja(-A, h, z, 1.7, 0.4, 4.1, musgoMat, {solido:false});
+    const h2 = rand(3, 6);
+    agregarCaja( A, 0, z, 1.6, h2, 4, muroMat);
+    agregarCaja( A, h2, z, 1.7, 0.4, 4.1, musgoMat, {solido:false});
+  }
+
+  // ===== TEMPLO CENTRAL EN RUINAS =====
+  // Plataforma base
+  agregarCaja(0, 0, 0, 11, 1.2, 11, 0x8a8a78);
+  // Escalones frontales (decorativos, no sólidos)
+  agregarCaja(0, 0, 7, 4.5, 0.35, 1.2, 0x9a9a88, {solido:false});
+  agregarCaja(0, 0, 6.4, 4.5, 0.7, 0.9, 0x9a9a88, {solido:false});
+  agregarCaja(0, 0, 5.8, 4.5, 1.05, 0.9, 0x9a9a88, {solido:false});
+  // Columnas (4 esquinas) sobre la plataforma
+  const colPos = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
+  for(let i=0; i<colPos.length; i++){
+    const cx = colPos[i][0], cz = colPos[i][1];
+    agregarCaja(cx, 1.2, cz, 1.3, 5, 1.3, 0x9a9a88);
+    // Capitel
+    agregarCaja(cx, 6.2, cz, 1.6, 0.5, 1.6, 0xb0b098, {solido:false});
+    // Musgo en la base
+    agregarCaja(cx, 1.2, cz, 1.4, 0.15, 1.4, 0x3a5a2a, {solido:false});
+  }
+  // Techo parcial (roto)
+  agregarCaja(-2, 6.7, -2, 6, 0.7, 6, 0x7a7a6a, {solido:false});
+  agregarCaja( 3, 6.7,  3, 5, 0.7, 5, 0x6a6a5a, {solido:false});
+
+  // ===== ESTATUAS / ÍDOLOS =====
+  const posEstatua = [[-7, 0], [7, 0], [0, -7], [0, 7]];
+  for(let i=0; i<posEstatua.length; i++){
+    const ex = posEstatua[i][0], ez = posEstatua[i][1];
+    // Base
+    agregarCaja(ex, 0, ez, 1.3, 0.5, 1.3, 0x7a7a6a);
+    // Cuerpo
+    agregarCaja(ex, 0.5, ez, 1.0, 2.5, 1.0, 0x8a8a78);
+    // Cabeza
+    agregarCaja(ex, 3.0, ez, 1.1, 0.9, 1.1, 0x9a9a88, {solido:false});
+    // Musgo
+    agregarCaja(ex, 2.5, ez, 1.05, 0.15, 1.05, 0x3a5a2a, {solido:false});
+  }
+
+  // ===== ÁRBOLES GIGANTES (tronco + copa multi-capa + enredaderas) =====
+  for(let i=0; i<18; i++){
+    const x = rand(-25, 25), z = rand(-25, 25);
+    if(Math.hypot(x, z) < 9) continue;
+    if(Math.abs(x) < 8 && Math.abs(z) < 8) continue;
+    const alto = rand(5.5, 9.5);
+    const grosor = rand(0.8, 1.3);
+    // Tronco
+    agregarCaja(x, 0, z, grosor, alto, grosor, 0x4a3020);
+    // Copa en 3 capas (más ancha abajo)
+    agregarCaja(x, alto, z, 5.0, 1.0, 5.0, 0x2a5a2a, {solido:false});
+    agregarCaja(x, alto+1.0, z, 4.0, 1.0, 4.0, 0x3a6a3a, {solido:false});
+    agregarCaja(x, alto+2.0, z, 3.0, 0.9, 3.0, 0x4a7a4a, {solido:false});
+    // Enredaderas colgando
+    agregarCaja(x - 1.8, alto - 2.5, z, 0.12, 2.5, 0.12, 0x3a6a3a, {solido:false});
+    agregarCaja(x + 1.8, alto - 3.2, z, 0.12, 3.2, 0.12, 0x2a5a2a, {solido:false});
+    agregarCaja(x, alto - 2.0, z + 1.8, 0.12, 2.0, 0.12, 0x2a5a2a, {solido:false});
+  }
+
+  // ===== ÁRBOLES MEDIANOS =====
+  for(let i=0; i<15; i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 6) continue;
+    const alto = rand(3.5, 5.5);
+    agregarCaja(x, 0, z, 0.6, alto, 0.6, 0x4a3020);
+    agregarCaja(x, alto, z, 3.2, 1.6, 3.2, 0x3a6a3a, {solido:false});
+    agregarCaja(x, alto + 0.8, z, 2.4, 1.2, 2.4, 0x4a7a4a, {solido:false});
+  }
+
+  // ===== ROCAS CON MUSGO =====
+  for(let i=0; i<18; i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 8) continue;
+    const s = rand(1.0, 2.5);
+    agregarCaja(x, 0, z, s, s*0.75, s, 0x5a5a4a);
+    // Musgo encima
+    agregarCaja(x, s*0.75, z, s*0.9, 0.15, s*0.9, 0x3a5a2a, {solido:false});
+  }
+
+  // ===== ARBUSTOS DENSA VEGETACIÓN =====
+  for(let i=0; i<40; i++){
+    const x = rand(-27, 27), z = rand(-27, 27);
+    if(Math.hypot(x, z) < 6) continue;
+    const s = rand(0.8, 1.6);
+    // Dos capas de verde
+    agregarCaja(x, 0, z, s, s*0.55, s, 0x2a4a1a);
+    agregarCaja(x, s*0.4, z, s*0.85, s*0.5, s*0.85, 0x3a5a2a, {solido:false});
+  }
+
+  // ===== ENREDADERAS SUELTAS =====
+  for(let i=0; i<12; i++){
+    const x = rand(-26, 26), z = rand(-26, 26);
+    if(Math.hypot(x, z) < 8) continue;
+    agregarCaja(x, 0, z, 0.15, rand(3, 6), 0.15, 0x3a6a2a, {solido:false});
+  }
+
+  // ===== TRONCOS CAÍDOS =====
+  for(let i=0; i<6; i++){
+    const x = rand(-22, 22), z = rand(-22, 22);
+    if(Math.hypot(x, z) < 9) continue;
     const horiz = Math.random() > 0.5;
-    const w = horiz ? 3 : 0.3;
-    const d = horiz ? 0.3 : 3;
-    agregarCaja(x, 0, z, w, 1.2, d, 0x6b4a2a);
+    const w = horiz ? rand(5, 8) : 1.0;
+    const d = horiz ? 1.0 : rand(5, 8);
+    agregarCaja(x, 0, z, w, 0.9, d, 0x3a2818);
+    // Musgo
+    agregarCaja(x, 0.9, z, w*0.95, 0.15, d*0.95, 0x3a5a2a, {solido:false});
+  }
+
+  // ===== CHARCA DE AGUA =====
+  const aguaMat = new THREE.MeshLambertMaterial({ color: 0x2a5a5a, transparent:true, opacity:0.85 });
+  const charca = new THREE.Mesh(new THREE.CircleGeometry(5.5, 20), aguaMat);
+  charca.rotation.x = -Math.PI/2;
+  charca.position.set(-16, 0.06, 16);
+  mapaGroup.add(charca);
+  // Rocas alrededor de la charca
+  for(let i=0; i<8; i++){
+    const ang = (i/8) * Math.PI * 2;
+    const rx = -16 + Math.cos(ang) * 6;
+    const rz = 16 + Math.sin(ang) * 6;
+    agregarCaja(rx, 0, rz, 1.2, 0.7, 1.2, 0x5a5a4a);
+  }
+
+  // ===== PILARES ROTOS (decoración) =====
+  for(let i=0; i<8; i++){
+    const x = rand(-24, 24), z = rand(-24, 24);
+    if(Math.hypot(x, z) < 9) continue;
+    const alto = rand(1.5, 3.5);
+    agregarCaja(x, 0, z, 1.0, alto, 1.0, 0x8a8a78);
+    agregarCaja(x, alto, z, 1.1, 0.15, 1.1, 0x3a5a2a, {solido:false});
   }
 }
 
@@ -1706,11 +2006,9 @@ function actualizarViewModel(dt){
     camara.updateProjectionMatrix();
   }
 
-  // 🎯 Si es francotirador y está apuntando, ocultamos el viewmodel
   const usandoScope = (arma.id === 'francotirador' && Jugador.adsT > 0.65);
   vm.visible = !usandoScope;
   if(usandoScope){
-    // resetear posiciones residuales del muzzle flash
     if(vm.userData && vm.userData.flash){
       vm.userData.flash.material.opacity = 0;
       vm.userData.halo.material.opacity = 0;
@@ -1775,9 +2073,6 @@ function cambiarArma(idx){
   Jugador.cadenciaT = Math.max(Jugador.cadenciaT, 0.22);
   Audio3D.tono(600, 0.05, 0.07, 'square', 900);
   actualizarHUDArma();
-  // 🎯 El estado de apuntado (Movil.apuntando / ratón) se mantiene al cambiar de arma.
-  //    Sólo reseteamos el temporizador visual ADS suavemente:
-  // (no tocamos adsT para que la transición sea suave)
 }
 
 function intentarRecargar(){
@@ -2601,8 +2896,6 @@ function pausar(){
   Input.ratonIzq = false; Input.ratonDer = false;
   Input.arrastre = false;
   Movil.disparando = false;
-  // No reseteamos Movil.apuntando para mantener el estado de mira,
-  // pero sí desactivamos el scope visual
   document.getElementById('scope').classList.remove('activa');
   actualizarAvisoRaton();
   actualizarBotonPausa();
@@ -2802,7 +3095,7 @@ function iniciarQuiz(){
   Movil.saltar = false;
   Movil.joyX = 0;
   Movil.joyY = 0;
-  resetAim();  // apagar la mira al entrar al quiz
+  resetAim();
 
   Estado.fase = 'quiz';
   document.getElementById('crosshair').classList.remove('activa');
@@ -3257,7 +3550,6 @@ function initControlesMoviles(){
     el.addEventListener('pointerleave', soltar);
   }
 
-  // Botones "hold" (se mantienen mientras pulsas)
   enlazarBoton('btnDisparar',
     function(){ Movil.disparando = true; },
     function(){ Movil.disparando = false; });
@@ -3268,7 +3560,6 @@ function initControlesMoviles(){
   enlazarBoton('btnArma',
     function(){ cambiarArma((Jugador.armaIdx + 1) % ARMAS.length); }, null);
 
-  // 🎯 Botón MIRA → modo TOGGLE (un toque activa, otro desactiva)
   const btnApuntar = document.getElementById('btnApuntar');
   btnApuntar.addEventListener('pointerdown', function(ev){
     ev.preventDefault();
@@ -3276,7 +3567,6 @@ function initControlesMoviles(){
     if(Estado.fase !== 'jugando') return;
     toggleAim();
   }, {passive:false});
-  // Evitar el click fantasma que dispararía dos veces
   btnApuntar.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); });
 }
 
@@ -3321,8 +3611,8 @@ function construirInstrucciones(){
        +    '<span>Visor rojo = te ve · Mochila = de espaldas</span>'
        +  '</div>';
   html += '<div class="fila" style="border-top:1px solid rgba(141,255,171,.2);padding-top:8px">'
-       +    '<span><b>🎚️ MODO FÁCIL</b></span>'
-       +    '<span>Playas, Trigo y Base Ártica son más relajados</span>'
+       +    '<span><b>🎚️ MAPAS DISPONIBLES</b></span>'
+       +    '<span>Ártica = Fácil · Urbana/Barco/Selva = Normal · Almacén/Ruinas = Difícil</span>'
        +  '</div>';
   html += '<div class="fila" style="border-top:1px solid rgba(141,255,171,.2);padding-top:8px">'
        +    '<span><b>💀 ENEMIGO ELIMINADO</b></span>'
