@@ -4,6 +4,7 @@ const urlsToCache = [
   './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
   'https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js'
 ];
 
