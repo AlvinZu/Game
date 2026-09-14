@@ -758,13 +758,13 @@ const Movil = { joyX:0, joyY:0, activo:false, idJoystick:null, idMirar:null, cen
 
 window.addEventListener('keydown', e=>{
   if(e.code === 'Escape'){
-    if(Estado.fase === 'jugando') pausar();
+    if(Estado.fase === 'jugando' || Estado.fase === 'duelo') pausar();
     else if(Estado.fase === 'pausa') reanudar();
     return;
   }
   Input.teclas[e.code] = true;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.code) >= 0) e.preventDefault();
-  if(Estado.fase !== 'jugando') return;
+  if(Estado.fase !== 'jugando' && Estado.fase !== 'duelo') return;  // ← FIX
   if(e.code === 'KeyR') intentarRecargar();
   if(e.code === 'Digit1') cambiarArmaPorIndice(0);
   if(e.code === 'Digit2') cambiarArmaPorIndice(1);
@@ -790,10 +790,11 @@ window.addEventListener('mousemove', e=>{
 window.addEventListener('mousedown', e=>{
   if(e.button === 0) Input.ratonIzq = true;
   if(e.button === 2) Input.ratonDer = true;
-  if(e.button === 1 && !Input.bloquearRaton && Estado.fase === 'jugando' && !ES_MOVIL){
+  const enPartida = (Estado.fase === 'jugando' || Estado.fase === 'duelo');
+  if(e.button === 1 && !Input.bloquearRaton && enPartida && !ES_MOVIL){
     Input.arrastre = true; Input.arrX = e.clientX; Input.arrY = e.clientY; e.preventDefault();
   }
-  if(e.target === lienzo && Estado.fase === 'jugando' && !ES_MOVIL && !Input.bloquearRaton) pedirBloqueo();
+  if(e.target === lienzo && enPartida && !ES_MOVIL && !Input.bloquearRaton) pedirBloqueo();
 });
 window.addEventListener('mouseup', e=>{
   if(e.button === 0) Input.ratonIzq = false;
@@ -802,7 +803,7 @@ window.addEventListener('mouseup', e=>{
 });
 window.addEventListener('contextmenu', e=> e.preventDefault());
 window.addEventListener('wheel', e=>{
-  if(Estado.fase !== 'jugando') return;
+  if(Estado.fase !== 'jugando' && Estado.fase !== 'duelo') return;
   Input.rueda += e.deltaY;
   if(Math.abs(Input.rueda) > 40){
     const dir = Input.rueda > 0 ? 1 : -1;
@@ -818,7 +819,7 @@ document.addEventListener('pointerlockchange', ()=>{
   Input.bloquearRaton = bloqueado;
   actualizarAvisoRaton();
   if(bloqueado){ intentosLock = 0; }
-  else if(Estado.fase === 'jugando' && !ES_MOVIL){ pausar(); }
+    else if((Estado.fase === 'jugando' || Estado.fase === 'duelo') && !ES_MOVIL){ pausar(); }
 });
 document.addEventListener('pointerlockerror', ()=>{ Input.bloquearRaton = false; actualizarAvisoRaton(); });
 function pedirBloqueo(){
@@ -830,7 +831,8 @@ function pedirBloqueo(){
 function actualizarAvisoRaton(){
   const hint = document.getElementById('mouseHint');
   if(!hint) return;
-  if(!ES_MOVIL && Estado.fase === 'jugando' && !Input.bloquearRaton) hint.classList.add('activo');
+  const enPartida = (Estado.fase === 'jugando' || Estado.fase === 'duelo');
+  if(!ES_MOVIL && enPartida && !Input.bloquearRaton) hint.classList.add('activo');
   else hint.classList.remove('activo');
 }
 
@@ -1681,6 +1683,10 @@ function obtenerObjetivosRaycast(){
   const lista = [];
   for(let i=0;i<mapaGroup.children.length;i++) lista.push(mapaGroup.children[i]);
   for(let i=0;i<enemigos.length;i++){ if(!enemigos[i].muerto) lista.push(enemigos[i].grupo); }
+  // 🎯 Incluir al rival del duelo para que las balas le hagan daño
+  if(Estado.fase === 'duelo' && typeof Net !== 'undefined' && Net.rivalMesh && Net.rival.vivo){
+    lista.push(Net.rivalMesh);
+  }
   return lista;
 }
 
@@ -2265,11 +2271,12 @@ let mapaSeleccionado = 0;
 function actualizarBotonPausa(){
   const btn = document.getElementById('btnPausa');
   if(!btn) return;
-  if(ES_MOVIL && Estado.fase === 'jugando') btn.style.display = 'flex';
+  if(ES_MOVIL && (Estado.fase === 'jugando' || Estado.fase === 'duelo')) btn.style.display = 'flex';
   else btn.style.display = 'none';
 }
 
 function iniciarPartida(){
+  Estado.dueloEmpezado = false;
   limpiarMapa(); limpiarEfectos();
   const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
   dificultadActual = DIFICULTAD[mapa.nivel] || DIFICULTAD.normal;
@@ -2312,8 +2319,11 @@ function iniciarPartida(){
   Audio3D.reanudar();
 }
 
+let fasePreviaPausa = 'jugando';
+
 function pausar(){
-  if(Estado.fase !== 'jugando') return;
+  if(Estado.fase !== 'jugando' && Estado.fase !== 'duelo') return;
+  fasePreviaPausa = Estado.fase;   // ← guardar de dónde venimos
   Estado.fase = 'pausa';
   document.getElementById('pausa').classList.remove('oculto');
   document.getElementById('crosshair').classList.remove('activa');
@@ -2325,7 +2335,7 @@ function pausar(){
 }
 function reanudar(){
   if(Estado.fase !== 'pausa') return;
-  Estado.fase = 'jugando';
+  Estado.fase = fasePreviaPausa || 'jugando';   // ← volver a donde estábamos
   document.getElementById('pausa').classList.add('oculto');
   document.getElementById('crosshair').classList.add('activa');
   pedirBloqueo(); actualizarAvisoRaton(); actualizarBotonPausa();
@@ -2873,20 +2883,20 @@ function initControlesMoviles(){
   btnArma2.textContent = 'ARMA-';
   btnArma2.addEventListener('pointerdown', function(ev){
     ev.preventDefault(); ev.stopPropagation();
-    if(Estado.fase !== 'jugando') return;
+    if(Estado.fase !== 'jugando' && Estado.fase !== 'duelo') return;
     ciclarArma(-1);
   }, {passive:false});
   const btnArma = document.getElementById('btnArma');
   btnArma.textContent = 'ARMA+';
   btnArma.addEventListener('pointerdown', function(ev){
     ev.preventDefault(); ev.stopPropagation();
-    if(Estado.fase !== 'jugando') return;
+    if(Estado.fase !== 'jugando' && Estado.fase !== 'duelo') return;
     ciclarArma(1);
   }, {passive:false});
   const btnApuntar = document.getElementById('btnApuntar');
   btnApuntar.addEventListener('pointerdown', function(ev){
     ev.preventDefault(); ev.stopPropagation();
-    if(Estado.fase !== 'jugando') return;
+    if(Estado.fase !== 'jugando' && Estado.fase !== 'duelo') return;
     toggleAim();
   }, {passive:false});
   btnApuntar.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); });
@@ -3351,6 +3361,12 @@ async function comenzarDuelo(){
 
 function empezarDuelo(){
   Estado.dueloEmpezado = true;
+  // 🧹 Limpiar mesh del rival si venimos de otro duelo
+  if(Net.rivalMesh){
+    escena.remove(Net.rivalMesh);
+    Net.rivalMesh.traverse(function(o){ if(o.geometry) o.geometry.dispose(); });
+    Net.rivalMesh = null;
+  }
   // Preparar escena y jugador SIN oleadas
   limpiarMapa(); limpiarEfectos();
   const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
@@ -3474,7 +3490,8 @@ function actualizarRival(dt){
   Net.rivalMesh.position.x = lerp(Net.rivalMesh.position.x, r.x, suav);
   Net.rivalMesh.position.y = lerp(Net.rivalMesh.position.y, r.y, suav);
   Net.rivalMesh.position.z = lerp(Net.rivalMesh.position.z, r.z, suav);
-  Net.rivalMesh.rotation.y = r.yaw;
+  // 🧭 +π porque la cámara mira hacia -Z y el "frente" del mesh está en +Z local
+  Net.rivalMesh.rotation.y = r.yaw + Math.PI;
   Net.rivalMesh.visible = r.vivo !== false;
 }
 
@@ -3569,8 +3586,20 @@ function init(){
   document.getElementById('btnCerrarArsenal').addEventListener('click', mostrarMenuPrincipal);
 
   document.getElementById('btnReanudar').addEventListener('click', reanudar);
-  document.getElementById('btnReiniciarPausa').addEventListener('click', iniciarPartida);
-  document.getElementById('btnVolverMenuPausa').addEventListener('click', mostrarMenuPrincipal);
+  document.getElementById('btnReiniciarPausa').addEventListener('click', function(){
+  if(fasePreviaPausa === 'duelo' || Estado.dueloEmpezado){
+    salirDeSala();
+    document.getElementById('pausa').classList.add('oculto');
+    mostrarMenuPrincipal();
+  } else {
+    iniciarPartida();
+  }
+});
+document.getElementById('btnVolverMenuPausa').addEventListener('click', function(){
+  if(fasePreviaPausa === 'duelo' || Estado.dueloEmpezado) salirDeSala();
+  document.getElementById('pausa').classList.add('oculto');
+  mostrarMenuPrincipal();
+});
   document.getElementById('btnReintentar').addEventListener('click', iniciarPartida);
   document.getElementById('btnCambiarMapa').addEventListener('click', mostrarSeleccionMapa);
 
@@ -3605,9 +3634,9 @@ function init(){
   });
 
   lienzo.addEventListener('click', function(){
-    Audio3D.init(); Audio3D.reanudar();
-    if(Estado.fase === 'jugando' && !ES_MOVIL && !document.pointerLockElement) pedirBloqueo();
-  });
+  Audio3D.init(); Audio3D.reanudar();
+  if((Estado.fase === 'jugando' || Estado.fase === 'duelo') && !ES_MOVIL && !document.pointerLockElement) pedirBloqueo();
+});
 
   window.addEventListener('resize', function(){
     camara.aspect = window.innerWidth / window.innerHeight;
@@ -3618,12 +3647,12 @@ function init(){
   });
   function comprobarOrientacion(){
     const el = document.getElementById('avisoVertical');
-    if(ES_MOVIL && window.innerHeight > window.innerWidth && Estado.fase === 'jugando') el.style.display = 'flex';
+        if(ES_MOVIL && window.innerHeight > window.innerWidth && (Estado.fase === 'jugando' || Estado.fase === 'duelo')) el.style.display = 'flex';
     else el.style.display = 'none';
   }
   window.addEventListener('orientationchange', function(){ setTimeout(comprobarOrientacion, 260); });
   comprobarOrientacion();
-  document.addEventListener('visibilitychange', function(){ if(document.hidden && Estado.fase === 'jugando') pausar(); });
+  document.addEventListener('visibilitychange', function(){ if(document.hidden && (Estado.fase === 'jugando' || Estado.fase === 'duelo')) pausar(); });
   bucle();
 
  /* ===== LOBBY 1v1 ===== */
