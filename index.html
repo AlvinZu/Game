@@ -318,6 +318,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     </div>
     <div class="panelInstrucciones" id="panelInstrucciones"></div>
     <button id="btnJugar" class="boton">JUGAR</button>
+    <button id="btnAbrir1v1" class="boton morado">1 VS 1 ONLINE</button>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
       <button id="btnAbrirTienda" class="boton oro">TIENDA</button>
       <button id="btnAbrirLogros" class="boton secundario">LOGROS</button>
@@ -384,6 +385,42 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <button id="btnCambiarMapa" class="boton secundario">CAMBIAR MAPA</button>
   </div>
 
+  <!-- ===================== LOBBY 1v1 ===================== -->
+<div id="lobby1v1" class="pantalla oculto">
+  <div class="titulo" style="font-size:clamp(22px,5.5vw,40px)">MODO 1 VS 1</div>
+  <div class="subtitulo">DUELO ONLINE · MISMO MAPA · MISMO CÓDIGO</div>
+
+  <input id="nombreJugador" maxlength="12" placeholder="TU NOMBRE"
+         style="background:rgba(0,0,0,.5);border:1px solid var(--borde);color:#fff;
+                padding:12px 18px;font-family:inherit;font-size:16px;letter-spacing:3px;
+                text-align:center;text-transform:uppercase;width:260px;">
+
+  <button id="btnCrearSala" class="boton">CREAR SALA</button>
+
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;">
+    <input id="codigoSala" maxlength="6" placeholder="CÓDIGO"
+           style="background:rgba(0,0,0,.5);border:1px solid var(--oro);color:#fff;
+                  padding:12px 18px;font-family:inherit;font-size:22px;font-weight:bold;
+                  letter-spacing:8px;text-align:center;text-transform:uppercase;width:180px;">
+    <button id="btnUnirSala" class="boton oro">UNIRSE</button>
+  </div>
+
+  <div id="estadoLobby" style="font-size:13px;letter-spacing:3px;color:var(--ambar);
+       min-height:22px;text-align:center;padding:0 10px;"></div>
+
+  <div id="infoSala" class="panelInstrucciones oculto"
+       style="text-align:center;max-width:420px;">
+    <div style="font-size:11px;letter-spacing:4px;color:var(--verde2);">CÓDIGO DE TU SALA</div>
+    <div id="codigoMostrado" style="font-size:42px;font-weight:bold;letter-spacing:12px;
+         color:#fff;text-shadow:0 0 20px var(--oro);margin:8px 0;"></div>
+    <div style="font-size:11px;opacity:.75;">Comparte este código con tu rival</div>
+    <div id="jugadoresLobby" style="margin-top:14px;font-size:13px;letter-spacing:2px;"></div>
+  </div>
+
+  <button id="btnComenzarDuelo" class="boton morado oculto">¡COMENZAR DUELO!</button>
+  <button id="btnSalirLobby" class="boton secundario">VOLVER AL MENÚ</button>
+</div>
+
   <div id="quiz" class="pantalla oculto">
     <div class="titulo">DESAFÍO MATEMÁTICO</div>
     <div class="subtitulo">RESPONDE PARA CONTINUAR LA MISIÓN</div>
@@ -397,6 +434,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
   <div id="avisoVertical">📱 GIRA EL DISPOSITIVO<br>PARA JUGAR EN HORIZONTAL</div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function(){
@@ -2735,7 +2774,19 @@ function bucle(){
     actualizarEfectos(dt);
     actualizarMensaje(dt);
     actualizarHUDStats();
-  } else if(Estado.fase === 'menu' || Estado.fase === 'seleccion' || Estado.fase === 'tienda' || Estado.fase === 'logros' || Estado.fase === 'arsenal'){
+  } else if(Estado.fase === 'duelo'){
+    actualizarJugador(dt);
+    actualizarArmas(dt);
+    actualizarRival(dt);
+    actualizarEfectos(dt);
+    actualizarMensaje(dt);
+    actualizarHUDStats();
+    const ahora = performance.now();
+    if(ahora - Net.ultimoEnvio > Net.intervaloEnvio){
+      Net.ultimoEnvio = ahora;
+      enviarMiEstado();
+    }
+  } else if(Estado.fase === 'menu' || Estado.fase === 'seleccion' || Estado.fase === 'tienda' || Estado.fase === 'logros' || Estado.fase === 'arsenal' || Estado.fase === 'lobby'){
     const t = performance.now() * 0.00013;
     camara.position.set(Math.cos(t) * 16, 6.5, Math.sin(t) * 16 + 4);
     camara.lookAt(0, 2.2, 0);
@@ -3124,6 +3175,368 @@ function mostrarArsenal(){
 }
 
 /* ============================================================
+   MULTIJUGADOR 1 VS 1 — Firebase Realtime Database
+   ============================================================ */
+const FirebaseConfig = {
+  databaseURL: "https://operacion-arena-default-rtdb.firebaseio.com/"
+};
+
+const Net = {
+  db: null,
+  listo: false,
+  salaId: null,
+  jugadorId: null,
+  jugadorNombre: 'JUGADOR',
+  host: false,
+  miRef: null,
+  rivalRef: null,
+  rival: { x:0, y:0, z:-10, yaw:0, pitch:0, vida:100, vivo:true, nombre:'—' },
+  rivalMesh: null,
+  ultimoEnvio: 0,
+  intervaloEnvio: 55
+};
+
+function inicializarFirebase(){
+  if(Net.listo) return true;
+  if(typeof firebase === 'undefined'){ console.error('Firebase SDK no cargado'); return false; }
+  try{
+    if(!firebase.apps || firebase.apps.length === 0){
+      firebase.initializeApp(FirebaseConfig);
+    }
+    Net.db = firebase.database();
+    Net.listo = true;
+    return true;
+  } catch(e){ console.error('Firebase init:', e); return false; }
+}
+
+function generarCodigoSala(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c = '';
+  for(let i=0;i<6;i++) c += chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+function generarIdJugador(){ return 'p_' + Math.random().toString(36).substring(2, 10); }
+
+function mostrarEstadoLobby(txt){
+  const el = document.getElementById('estadoLobby');
+  if(el) el.textContent = txt || '';
+}
+function actualizarJugadoresLobby(nombres){
+  const el = document.getElementById('jugadoresLobby');
+  if(!el) return;
+  let html = '';
+  for(let i=0;i<nombres.length;i++){
+    html += '<div style="color:' + (i===0?'var(--verde)':'var(--oro)') + '">● ' + nombres[i] + '</div>';
+  }
+  if(nombres.length < 2) html += '<div style="opacity:.4">○ ESPERANDO RIVAL...</div>';
+  el.innerHTML = html;
+}
+
+async function crearSala(nombre){
+  if(!inicializarFirebase()){ mostrarEstadoLobby('ERROR DE CONEXIÓN'); return; }
+  Net.jugadorNombre = (nombre || 'JUGADOR').toUpperCase().substring(0,12);
+  Net.jugadorId = generarIdJugador();
+  Net.salaId = generarCodigoSala();
+  Net.host = true;
+  const ref = Net.db.ref('rooms/' + Net.salaId);
+  await ref.set({
+    createdAt: firebase.database.ServerValue.TIMESTAMP,
+    updatedAt: firebase.database.ServerValue.TIMESTAMP,
+    hostId: Net.jugadorId,
+    mapa: mapaSeleccionado,
+    empezado: false,
+    ganador: null
+  });
+  await conectarASala(Net.salaId);
+  document.getElementById('infoSala').classList.remove('oculto');
+  document.getElementById('codigoMostrado').textContent = Net.salaId;
+  mostrarEstadoLobby('SALA CREADA · ESPERANDO RIVAL...');
+}
+
+async function unirSala(codigo, nombre){
+  if(!inicializarFirebase()){ mostrarEstadoLobby('ERROR DE CONEXIÓN'); return; }
+  codigo = (codigo || '').toUpperCase().trim();
+  if(codigo.length !== 6){ mostrarEstadoLobby('CÓDIGO INVÁLIDO'); return; }
+  const ref = Net.db.ref('rooms/' + codigo);
+  const snap = await ref.once('value');
+  if(!snap.exists()){ mostrarEstadoLobby('LA SALA NO EXISTE'); return; }
+  const data = snap.val();
+  if(data.empezado){ mostrarEstadoLobby('ESA PARTIDA YA EMPEZÓ'); return; }
+  const jugadores = data.players || {};
+  if(Object.keys(jugadores).length >= 2){ mostrarEstadoLobby('LA SALA ESTÁ LLENA'); return; }
+  Net.jugadorNombre = (nombre || 'JUGADOR').toUpperCase().substring(0,12);
+  Net.jugadorId = generarIdJugador();
+  Net.salaId = codigo;
+  Net.host = false;
+  await conectarASala(codigo);
+  document.getElementById('infoSala').classList.remove('oculto');
+  document.getElementById('codigoMostrado').textContent = Net.salaId;
+  mostrarEstadoLobby('CONECTADO · ESPERANDO AL ANFITRIÓN...');
+}
+
+async function conectarASala(codigo){
+  Net.miRef = Net.db.ref('rooms/' + codigo + '/players/' + Net.jugadorId);
+  const posInicial = Net.host ? { x:0, z:10, yaw:0 } : { x:0, z:-10, yaw:Math.PI };
+  await Net.miRef.set({
+    nombre: Net.jugadorNombre,
+    x: posInicial.x, y: 0, z: posInicial.z,
+    yaw: posInicial.yaw, pitch: 0,
+    vida: 100,
+    vivo: true,
+    host: Net.host,
+    conectadoEn: firebase.database.ServerValue.TIMESTAMP,
+    updatedAt: firebase.database.ServerValue.TIMESTAMP
+  });
+  Net.miRef.onDisconnect().remove();
+
+  // Escuchar mi propia vida (daño recibido por el rival)
+  Net.miRef.on('value', (snap) => {
+    const yo = snap.val();
+    if(!yo) return;
+    if(Estado.fase !== 'duelo' && Estado.fase !== 'jugando') return;
+    if(typeof yo.vida === 'number' && yo.vida < Jugador.vida - 0.5){
+      const dmg = Jugador.vida - yo.vida;
+      aplicarDanoDuelo(dmg);
+    }
+  });
+
+  // Escuchar a los otros jugadores
+  const playersRef = Net.db.ref('rooms/' + codigo + '/players');
+  playersRef.on('value', (snap) => {
+    const datos = snap.val() || {};
+    let rivales = [];
+    for(const id in datos){
+      if(id === Net.jugadorId) continue;
+      rivales.push({ id: id, data: datos[id] });
+    }
+    if(rivales.length > 0){
+      const r = rivales[0].data;
+      Net.rival.x = r.x || 0; Net.rival.y = r.y || 0; Net.rival.z = r.z || 0;
+      Net.rival.yaw = r.yaw || 0; Net.rival.pitch = r.pitch || 0;
+      Net.rival.vida = typeof r.vida === 'number' ? r.vida : 100;
+      Net.rival.vivo = r.vivo !== false;
+      Net.rival.nombre = r.nombre || 'RIVAL';
+      Net.rivalRef = Net.db.ref('rooms/' + codigo + '/players/' + rivales[0].id);
+      actualizarJugadoresLobby([Net.jugadorNombre, Net.rival.nombre]);
+      if(Net.host && rivales.length === 1){
+        document.getElementById('btnComenzarDuelo').classList.remove('oculto');
+      }
+    } else {
+      Net.rivalRef = null;
+      actualizarJugadoresLobby([Net.jugadorNombre]);
+      document.getElementById('btnComenzarDuelo').classList.add('oculto');
+    }
+  });
+
+  // Escuchar inicio de partida
+  Net.db.ref('rooms/' + codigo + '/empezado').on('value', (snap) => {
+    if(snap.val() === true && Estado.fase !== 'duelo' && !Estado.dueloEmpezado){
+      empezarDuelo();
+    }
+  });
+
+  // Escuchar ganador
+  Net.db.ref('rooms/' + codigo + '/ganador').on('value', (snap) => {
+    const g = snap.val();
+    if(g && Estado.fase === 'duelo'){
+      terminarDuelo(g);
+    }
+  });
+}
+
+async function comenzarDuelo(){
+  if(!Net.host) return;
+  await Net.db.ref('rooms/' + Net.salaId).update({ empezado: true });
+}
+
+function empezarDuelo(){
+  Estado.dueloEmpezado = true;
+  // Preparar escena y jugador SIN oleadas
+  limpiarMapa(); limpiarEfectos();
+  const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
+  dificultadActual = DIFICULTAD.normal;
+  CONFIG.VIDA_MAX = 100;
+  CONFIG.REGEN_RETARDO = 9999;
+  CONFIG.REGEN_VEL = 0;
+  aplicarEntornoMapa(mapa);
+  mapa.construir();
+  for(let i=0;i<enemigos.length;i++) enemigos[i].destruir();
+  enemigos.length = 0; jefeActual = null;
+  ocultarBarraJefe();
+  reiniciarJugador();
+  Object.keys(viewmodels).forEach(id => viewmodels[id].visible = false);
+  if(viewmodels[Jugador.armaIdActual]) viewmodels[Jugador.armaIdActual].visible = true;
+  tiempoJugadorInvulnerable = 0;
+  resetAim();
+  Estado.oleada = 0; Estado.bajas = 0; Estado.puntos = 0;
+  Estado.colaSpawn = []; Estado.intermedio = false;
+  Estado.monedasPartida = 0; Estado.xpPartida = 0;
+  Estado.recibioDanoEnOleada = false;
+  Perfil.datos.stats._bajasPartida = 0;
+
+  // Posición inicial según rol
+  if(Net.host){
+    Jugador.pos.set(0, 0, 10); Jugador.yaw = 0;
+  } else {
+    Jugador.pos.set(0, 0, -10); Jugador.yaw = Math.PI;
+  }
+
+  actualizarHUDStats(); actualizarHUDVida(); actualizarHUDArma(); actualizarHUDMunicion();
+
+  Estado.fase = 'duelo';
+  document.getElementById('lobby1v1').classList.add('oculto');
+  document.getElementById('menu').classList.add('oculto');
+  document.getElementById('gameover').classList.add('oculto');
+  document.getElementById('hud').classList.remove('oculto');
+  document.getElementById('crosshair').classList.add('activa');
+  if(ES_MOVIL) document.getElementById('controlesMovil').classList.remove('oculto');
+  camara.fov = CONFIG.FOV_BASE; camara.updateProjectionMatrix(); camara.rotation.z = 0;
+  pedirBloqueo(); actualizarAvisoRaton(); actualizarBotonPausa();
+  Audio3D.reanudar();
+
+  crearRivalMesh();
+  mostrarMensaje('¡DUELO 1 VS 1!', 'PRIMERO EN DERRIBAR AL OTRO', 3);
+}
+
+function crearRivalMesh(){
+  if(Net.rivalMesh) return;
+  const g = new THREE.Group();
+  const matCuerpo = new THREE.MeshLambertMaterial({ color: 0xc03030 });
+  const matCabeza = new THREE.MeshLambertMaterial({ color: 0xe8c8a0 });
+  const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
+
+  // Enemigo pseudo (para raycast y daño)
+  const pseudo = {
+    get muerto(){ return !Net.rival.vivo; },
+    get vida(){ return Net.rival.vida; },
+    recibirDano: function(dmg, esCabeza, desde){
+      if(!Net.rivalRef) return;
+      const nuevoVida = Math.max(0, (Net.rival.vida || 100) - dmg);
+      Net.rival.vida = nuevoVida;
+      Net.rivalRef.update({ vida: nuevoVida, vivo: nuevoVida > 0 });
+      if(nuevoVida <= 0){
+        Net.db.ref('rooms/' + Net.salaId).update({
+          ganador: Net.jugadorId,
+          ganadorNombre: Net.jugadorNombre
+        });
+      }
+    }
+  };
+
+  function pieza(w,h,d,mat,x,y,z,parte){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+    m.position.set(x,y,z);
+    m.userData = { enemigo: pseudo, parte: parte || 'cuerpo' };
+    m.castShadow = !ES_MOVIL;
+    g.add(m); return m;
+  }
+
+  pieza(0.62, 0.82, 0.36, matCuerpo, 0, 1.14, 0, 'cuerpo');
+  pieza(0.66, 0.42, 0.40, matOscuro, 0, 1.22, 0, 'cuerpo');
+  pieza(0.30, 0.30, 0.30, matCabeza, 0, 1.70, 0, 'cabeza');
+  pieza(0.34, 0.14, 0.34, matOscuro, 0, 1.86, 0, 'cabeza');
+  pieza(0.20, 0.72, 0.22, matOscuro, -0.16, 0.36, 0, 'cuerpo');
+  pieza(0.20, 0.72, 0.22, matOscuro, 0.16, 0.36, 0, 'cuerpo');
+  pieza(0.15, 0.60, 0.16, matCuerpo, -0.40, 1.18, 0.02, 'cuerpo');
+  pieza(0.15, 0.60, 0.16, matCuerpo, 0.40, 1.18, 0.02, 'cuerpo');
+  pieza(0.09, 0.11, 0.72, matOscuro, 0.30, 1.20, 0.42, 'cuerpo');
+
+  // Visor rojo
+  const visorMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.06, 0.03), visorMat);
+  visor.position.set(0, 1.72, 0.16);
+  visor.userData = { enemigo: pseudo, parte: 'cabeza' };
+  g.add(visor);
+
+  escena.add(g);
+  Net.rivalMesh = g;
+}
+
+function aplicarDanoDuelo(dmg){
+  if(!Jugador.vivo) return;
+  Jugador.vida = Math.max(0, Jugador.vida - dmg);
+  Jugador.tDano = 0;
+  flashDanoT = 0.35;
+  Jugador.shakeT = 0.28;
+  Jugador.shakeMag = clamp(dmg * 0.006, 0.02, 0.09);
+  Audio3D.recibirDano();
+  actualizarHUDVida();
+  if(Jugador.vida <= 0){
+    Jugador.vivo = false;
+    if(Net.miRef) Net.miRef.update({ vivo: false, vida: 0 });
+  }
+}
+
+function actualizarRival(dt){
+  if(!Net.rivalMesh) return;
+  const r = Net.rival;
+  const suav = 1 - Math.pow(0.001, dt);
+  Net.rivalMesh.position.x = lerp(Net.rivalMesh.position.x, r.x, suav);
+  Net.rivalMesh.position.y = lerp(Net.rivalMesh.position.y, r.y, suav);
+  Net.rivalMesh.position.z = lerp(Net.rivalMesh.position.z, r.z, suav);
+  Net.rivalMesh.rotation.y = r.yaw;
+  Net.rivalMesh.visible = r.vivo !== false;
+}
+
+function enviarMiEstado(){
+  if(!Net.miRef) return;
+  Net.miRef.update({
+    x: Jugador.pos.x, y: Jugador.pos.y, z: Jugador.pos.z,
+    yaw: Jugador.yaw, pitch: Jugador.pitch
+  });
+}
+
+function terminarDuelo(ganadorId){
+  if(Estado.fase !== 'duelo') return;
+  const gane = ganadorId === Net.jugadorId;
+  Estado.fase = 'gameover';
+  document.getElementById('crosshair').classList.remove('activa');
+  document.getElementById('scope').classList.remove('activa');
+  resetAim(); ocultarBarraJefe();
+
+  const monedasGanadas = gane ? 100 : 25;
+  const xpGanada = gane ? 50 : 10;
+  Perfil.ganarMonedas(monedasGanadas);
+  Perfil.ganarXP(xpGanada);
+
+  const t = document.getElementById('goTitulo');
+  t.textContent = gane ? '¡VICTORIA!' : 'DERROTA';
+  t.style.color = gane ? '#8dffab' : '#ff4d4d';
+  t.style.textShadow = gane
+    ? '0 0 30px rgba(141,255,171,.9)'
+    : '0 0 30px rgba(255,60,60,.9)';
+  document.getElementById('goBajas').textContent = '—';
+  document.getElementById('goOleada').textContent = '—';
+  document.getElementById('goJefes').textContent = '—';
+  document.getElementById('goPuntos').textContent = gane ? 100 : 0;
+  document.getElementById('goMonedas').textContent = '+' + monedasGanadas;
+  document.getElementById('goXp').textContent = '+' + xpGanada;
+  document.getElementById('gameover').classList.remove('oculto');
+  document.getElementById('controlesMovil').classList.add('oculto');
+  actualizarAvisoRaton(); actualizarBotonPausa();
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+
+function salirDeSala(){
+  try{
+    if(Net.miRef) Net.miRef.off();
+    if(Net.salaId) Net.db.ref('rooms/' + Net.salaId).off();
+  }catch(e){}
+  if(Net.miRef) Net.miRef.remove();
+  if(Net.rivalMesh){
+    escena.remove(Net.rivalMesh);
+    Net.rivalMesh.traverse(function(o){ if(o.geometry) o.geometry.dispose(); });
+    Net.rivalMesh = null;
+  }
+  Net.salaId = null;
+  Net.jugadorId = null;
+  Net.miRef = null;
+  Net.rivalRef = null;
+  Net.host = false;
+  Estado.dueloEmpezado = false;
+}
+
+/* ============================================================
    INIT
    ============================================================ */
 function init(){
@@ -3212,6 +3625,60 @@ function init(){
   comprobarOrientacion();
   document.addEventListener('visibilitychange', function(){ if(document.hidden && Estado.fase === 'jugando') pausar(); });
   bucle();
+
+ /* ===== LOBBY 1v1 ===== */
+  document.getElementById('btnAbrir1v1').addEventListener('click', function(){
+    Audio3D.init(); Audio3D.reanudar();
+    Estado.fase = 'lobby';
+    document.getElementById('menu').classList.add('oculto');
+    document.getElementById('lobby1v1').classList.remove('oculto');
+    document.getElementById('infoSala').classList.add('oculto');
+    document.getElementById('btnComenzarDuelo').classList.add('oculto');
+    mostrarEstadoLobby('');
+    actualizarBotonPausa();
+  });
+
+  document.getElementById('btnCrearSala').addEventListener('click', function(){
+    const nombre = document.getElementById('nombreJugador').value.trim() || 'JUGADOR';
+    crearSala(nombre).catch(e => { console.error(e); mostrarEstadoLobby('ERROR DE CONEXIÓN'); });
+  });
+
+  document.getElementById('btnUnirSala').addEventListener('click', function(){
+    const nombre = document.getElementById('nombreJugador').value.trim() || 'JUGADOR';
+    const codigo = document.getElementById('codigoSala').value.trim();
+    unirSala(codigo, nombre).catch(e => { console.error(e); mostrarEstadoLobby('ERROR DE CONEXIÓN'); });
+  });
+
+  document.getElementById('btnComenzarDuelo').addEventListener('click', function(){
+    comenzarDuelo();
+  });
+
+  document.getElementById('btnSalirLobby').addEventListener('click', function(){
+    salirDeSala();
+    document.getElementById('lobby1v1').classList.add('oculto');
+    mostrarMenuPrincipal();
+  });
+
+  // Sobrescribir handlers de gameover para que duelos vuelvan al menú
+  const btnReintentar = document.getElementById('btnReintentar');
+  const btnCambiarMapa = document.getElementById('btnCambiarMapa');
+  if(btnReintentar){
+    const nuevoReintentar = btnReintentar.cloneNode(true);
+    btnReintentar.parentNode.replaceChild(nuevoReintentar, btnReintentar);
+    nuevoReintentar.addEventListener('click', function(){
+      if(Estado.dueloEmpezado){ salirDeSala(); mostrarMenuPrincipal(); }
+      else { iniciarPartida(); }
+    });
+  }
+  if(btnCambiarMapa){
+    const nuevoCambiarMapa = btnCambiarMapa.cloneNode(true);
+    btnCambiarMapa.parentNode.replaceChild(nuevoCambiarMapa, btnCambiarMapa);
+    nuevoCambiarMapa.addEventListener('click', function(){
+      if(Estado.dueloEmpezado){ salirDeSala(); mostrarMenuPrincipal(); }
+      else { mostrarSeleccionMapa(); }
+    });
+  }
+  
 }
 
 if(typeof THREE === 'undefined'){
