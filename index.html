@@ -9,6 +9,10 @@
 
 <link rel="icon" type="image/png" href="icon-192x192.jpg">
 <link rel="apple-touch-icon" href="icon-180x180.jpg">
+<link rel="apple-touch-icon" sizes="152x152" href="icon-152x152.jpg">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180x180.jpg">
+<link rel="apple-touch-icon" sizes="192x192" href="icon-192x192.jpg">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512x512.jpg">
 <link rel="manifest" href="manifest.json">
 
 <style>
@@ -3209,9 +3213,15 @@ function mostrarArsenal(){
 /* ============================================================
    MULTIJUGADOR 1 VS 1 — Firebase + Auth anónima + Revancha
    ============================================================ */
-const FirebaseConfig = {
-  databaseURL: "https://operacion-arena-default-rtdb.firebaseio.com/"
-};
+const firebaseConfig = {
+    apiKey: "AIzaSyAUMwjztVCuEZ1JfpEKSrA4sAH43a9uuNE",
+    authDomain: "operacion-arena.firebaseapp.com",
+    databaseURL: "https://operacion-arena-default-rtdb.firebaseio.com",
+    projectId: "operacion-arena",
+    storageBucket: "operacion-arena.firebasestorage.app",
+    messagingSenderId: "675481175745",
+    appId: "1:675481175745:web:b66b28483cc507db2c3640"
+  };
 
 const Net = {
   db: null,
