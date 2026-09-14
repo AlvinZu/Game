@@ -381,6 +381,13 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <div style="font-size:14px;letter-spacing:3px;color:var(--oro);font-weight:bold;">
       GANANCIAS: <span id="goMonedas">+0</span> monedas · <span id="goXp">+0</span> XP
     </div>
+        <div id="dueloGameoverBtns" class="oculto" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+      <button id="btnRevancha" class="boton morado">⚔ REVANCHA</button>
+      <button id="btnSalirDuelo" class="boton secundario">SALIR AL MENÚ</button>
+    </div>
+    <div id="esperandoRevancha" class="oculto" style="font-size:12px;letter-spacing:3px;color:var(--ambar);margin-top:6px;">
+      ESPERANDO AL ANFITRIÓN...
+    </div>
     <button id="btnReintentar" class="boton">REINTENTAR</button>
     <button id="btnCambiarMapa" class="boton secundario">CAMBIAR MAPA</button>
   </div>
@@ -396,6 +403,16 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
                 text-align:center;text-transform:uppercase;width:260px;">
 
   <button id="btnCrearSala" class="boton">CREAR SALA</button>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:4px;">
+    <label style="font-size:11px;letter-spacing:3px;color:var(--verde2);">MAPA:</label>
+    <select id="mapaSelector" style="background:rgba(0,0,0,.5);border:1px solid var(--borde);color:#fff;
+            padding:8px 12px;font-family:inherit;font-size:12px;letter-spacing:2px;cursor:pointer;
+            border-radius:4px;min-width:200px;">
+    </select>
+    <span id="mapaBloqueado" class="oculto" style="font-size:11px;color:var(--ambar);letter-spacing:2px;">
+      🔒 Solo el anfitrión elige mapa
+    </span>
+  </div>
 
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;">
     <input id="codigoSala" maxlength="6" placeholder="CÓDIGO"
@@ -435,6 +452,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -2362,6 +2380,10 @@ function terminarPartida(){
   actualizarAvisoRaton(); actualizarBotonPausa();
   if(document.pointerLockElement) document.exitPointerLock();
   comprobarTodosLogros();
+  // Ocultar botones de duelo
+  document.getElementById('dueloGameoverBtns').classList.add('oculto');
+  document.getElementById('btnReintentar').classList.remove('oculto');
+  document.getElementById('btnCambiarMapa').classList.remove('oculto');
   actualizarMenuPrincipal();
 }
 
@@ -3185,7 +3207,7 @@ function mostrarArsenal(){
 }
 
 /* ============================================================
-   MULTIJUGADOR 1 VS 1 — Firebase Realtime Database
+   MULTIJUGADOR 1 VS 1 — Firebase + Auth anónima + Revancha
    ============================================================ */
 const FirebaseConfig = {
   databaseURL: "https://operacion-arena-default-rtdb.firebaseio.com/"
@@ -3193,6 +3215,8 @@ const FirebaseConfig = {
 
 const Net = {
   db: null,
+  auth: null,
+  uid: null,
   listo: false,
   salaId: null,
   jugadorId: null,
@@ -3203,22 +3227,38 @@ const Net = {
   rival: { x:0, y:0, z:-10, yaw:0, pitch:0, vida:100, vivo:true, nombre:'—' },
   rivalMesh: null,
   ultimoEnvio: 0,
-  intervaloEnvio: 55
+  intervaloEnvio: 55,
+  listenersActivos: false,
+  revanchaEnCurso: false
 };
 
-function inicializarFirebase(){
+/* ============ FIREBASE INIT + AUTH ============ */
+async function inicializarFirebase(){
   if(Net.listo) return true;
   if(typeof firebase === 'undefined'){ console.error('Firebase SDK no cargado'); return false; }
   try{
     if(!firebase.apps || firebase.apps.length === 0){
       firebase.initializeApp(FirebaseConfig);
     }
+    Net.auth = firebase.auth();
     Net.db = firebase.database();
+    // Autenticación anónima
+    if(!Net.auth.currentUser){
+      const cred = await Net.auth.signInAnonymously();
+      Net.uid = cred.user.uid;
+    } else {
+      Net.uid = Net.auth.currentUser.uid;
+    }
+    console.log('🔥 Firebase OK · UID:', Net.uid);
     Net.listo = true;
     return true;
-  } catch(e){ console.error('Firebase init:', e); return false; }
+  } catch(e){
+    console.error('Firebase init:', e);
+    return false;
+  }
 }
 
+/* ============ UTILIDADES ============ */
 function generarCodigoSala(){
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let c = '';
@@ -3242,8 +3282,47 @@ function actualizarJugadoresLobby(nombres){
   el.innerHTML = html;
 }
 
+/* ============ SELECTOR DE MAPA ============ */
+function poblarMapaSelector(){
+  const sel = document.getElementById('mapaSelector');
+  if(!sel) return;
+  let html = '';
+  for(let i=0;i<MAPAS.length;i++){
+    html += '<option value="' + i + '">' + MAPAS[i].nombre + ' (' + MAPAS[i].dificultad + ')</option>';
+  }
+  sel.innerHTML = html;
+  sel.value = mapaSeleccionado;
+  sel.addEventListener('change', function(){
+    if(!Net.host){ this.value = mapaSeleccionado; return; }
+    mapaSeleccionado = parseInt(this.value, 10) || 0;
+    if(Net.salaId && Net.db){
+      Net.db.ref('rooms/' + Net.salaId).update({ mapa: mapaSeleccionado });
+    }
+    Audio3D.compra();
+  });
+}
+
+function actualizarMapaSelectorEstado(){
+  const sel = document.getElementById('mapaSelector');
+  const lbl = document.getElementById('mapaBloqueado');
+  if(!sel) return;
+  if(!Net.salaId){
+    sel.disabled = false;
+    if(lbl) lbl.classList.add('oculto');
+    return;
+  }
+  if(Net.host){
+    sel.disabled = false;
+    if(lbl) lbl.classList.add('oculto');
+  } else {
+    sel.disabled = true;
+    if(lbl) lbl.classList.remove('oculto');
+  }
+}
+
+/* ============ CREAR / UNIR SALA ============ */
 async function crearSala(nombre){
-  if(!inicializarFirebase()){ mostrarEstadoLobby('ERROR DE CONEXIÓN'); return; }
+  if(!(await inicializarFirebase())){ mostrarEstadoLobby('ERROR DE CONEXIÓN'); return; }
   Net.jugadorNombre = (nombre || 'JUGADOR').toUpperCase().substring(0,12);
   Net.jugadorId = generarIdJugador();
   Net.salaId = generarCodigoSala();
@@ -3253,6 +3332,7 @@ async function crearSala(nombre){
     createdAt: firebase.database.ServerValue.TIMESTAMP,
     updatedAt: firebase.database.ServerValue.TIMESTAMP,
     hostId: Net.jugadorId,
+    hostUid: Net.uid,
     mapa: mapaSeleccionado,
     empezado: false,
     ganador: null
@@ -3261,10 +3341,11 @@ async function crearSala(nombre){
   document.getElementById('infoSala').classList.remove('oculto');
   document.getElementById('codigoMostrado').textContent = Net.salaId;
   mostrarEstadoLobby('SALA CREADA · ESPERANDO RIVAL...');
+  actualizarMapaSelectorEstado();
 }
 
 async function unirSala(codigo, nombre){
-  if(!inicializarFirebase()){ mostrarEstadoLobby('ERROR DE CONEXIÓN'); return; }
+  if(!(await inicializarFirebase())){ mostrarEstadoLobby('ERROR DE CONEXIÓN'); return; }
   codigo = (codigo || '').toUpperCase().trim();
   if(codigo.length !== 6){ mostrarEstadoLobby('CÓDIGO INVÁLIDO'); return; }
   const ref = Net.db.ref('rooms/' + codigo);
@@ -3282,13 +3363,21 @@ async function unirSala(codigo, nombre){
   document.getElementById('infoSala').classList.remove('oculto');
   document.getElementById('codigoMostrado').textContent = Net.salaId;
   mostrarEstadoLobby('CONECTADO · ESPERANDO AL ANFITRIÓN...');
+  actualizarMapaSelectorEstado();
 }
 
 async function conectarASala(codigo){
+  if(Net.listenersActivos){
+    // Si ya estábamos conectados a la misma sala, no volver a crear listeners
+    return;
+  }
+  Net.listenersActivos = true;
+
   Net.miRef = Net.db.ref('rooms/' + codigo + '/players/' + Net.jugadorId);
   const posInicial = Net.host ? { x:0, z:10, yaw:0 } : { x:0, z:-10, yaw:Math.PI };
   await Net.miRef.set({
     nombre: Net.jugadorNombre,
+    uid: Net.uid,
     x: posInicial.x, y: 0, z: posInicial.z,
     yaw: posInicial.yaw, pitch: 0,
     vida: 100,
@@ -3299,7 +3388,7 @@ async function conectarASala(codigo){
   });
   Net.miRef.onDisconnect().remove();
 
-  // Escuchar mi propia vida (daño recibido por el rival)
+  // Escuchar mi propia vida
   Net.miRef.on('value', (snap) => {
     const yo = snap.val();
     if(!yo) return;
@@ -3310,7 +3399,7 @@ async function conectarASala(codigo){
     }
   });
 
-  // Escuchar a los otros jugadores
+  // Escuchar jugadores
   const playersRef = Net.db.ref('rooms/' + codigo + '/players');
   playersRef.on('value', (snap) => {
     const datos = snap.val() || {};
@@ -3338,9 +3427,24 @@ async function conectarASala(codigo){
     }
   });
 
-  // Escuchar inicio de partida
+  // Escuchar mapa (cambios del host)
+  Net.db.ref('rooms/' + codigo + '/mapa').on('value', (snap) => {
+    const m = snap.val();
+    if(typeof m === 'number'){
+      mapaSeleccionado = m;
+      const sel = document.getElementById('mapaSelector');
+      if(sel) sel.value = m;
+    }
+  });
+
+  // Escuchar inicio de partida (con soporte de revancha)
   Net.db.ref('rooms/' + codigo + '/empezado').on('value', (snap) => {
-    if(snap.val() === true && Estado.fase !== 'duelo' && !Estado.dueloEmpezado){
+    const val = snap.val();
+    if(val === false){
+      // Revancha preparada: reset de banderas para permitir el siguiente round
+      Estado.dueloEmpezado = false;
+    }
+    if(val === true && !Estado.dueloEmpezado){
       empezarDuelo();
     }
   });
@@ -3356,18 +3460,64 @@ async function conectarASala(codigo){
 
 async function comenzarDuelo(){
   if(!Net.host) return;
-  await Net.db.ref('rooms/' + Net.salaId).update({ empezado: true });
+  await Net.db.ref('rooms/' + Net.salaId).update({ empezado: true, mapa: mapaSeleccionado });
 }
 
+/* ============ REVANCHA RÁPIDA ============ */
+async function solicitarRevancha(){
+  if(!Net.host || !Net.salaId) return;
+  Net.revanchaEnCurso = true;
+  document.getElementById('esperandoRevancha').classList.add('oculto');
+  document.getElementById('dueloGameoverBtns').classList.add('oculto');
+  mostrarMensaje('PREPARANDO REVANCHA...', '', 1.5);
+  try{
+    // 1. Resetear estado de sala
+    await Net.db.ref('rooms/' + Net.salaId).update({
+      empezado: false,
+      ganador: null,
+      ganadorNombre: null
+    });
+    // 2. Resetear vida y posición de ambos jugadores
+    const updates = {};
+    const posHost = Net.host ? { x:0, z:10, yaw:0 } : { x:0, z:-10, yaw:Math.PI };
+    const posGuest = Net.host ? { x:0, z:-10, yaw:Math.PI } : { x:0, z:10, yaw:0 };
+    // Mi propia posición
+    updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/vida'] = 100;
+    updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/vivo'] = true;
+    updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/x'] = posHost.x;
+    updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/z'] = posHost.z;
+    updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/yaw'] = posHost.yaw;
+    // Rival
+    if(Net.rivalRef){
+      const rivalId = Net.rivalRef.key;
+      updates['rooms/' + Net.salaId + '/players/' + rivalId + '/vida'] = 100;
+      updates['rooms/' + Net.salaId + '/players/' + rivalId + '/vivo'] = true;
+      updates['rooms/' + Net.salaId + '/players/' + rivalId + '/x'] = posGuest.x;
+      updates['rooms/' + Net.salaId + '/players/' + rivalId + '/z'] = posGuest.z;
+      updates['rooms/' + Net.salaId + '/players/' + rivalId + '/yaw'] = posGuest.yaw;
+    }
+    await Net.db.ref().update(updates);
+    // 3. Pequeña pausa visual y arrancar de nuevo
+    setTimeout(async () => {
+      Net.revanchaEnCurso = false;
+      await Net.db.ref('rooms/' + Net.salaId).update({ empezado: true });
+    }, 1200);
+  } catch(e){
+    console.error('Revancha:', e);
+    Net.revanchaEnCurso = false;
+    mostrarEstadoLobby('ERROR AL INICIAR REVANCHA');
+  }
+}
+
+/* ============ EMPEZAR DUELO ============ */
 function empezarDuelo(){
   Estado.dueloEmpezado = true;
-  // 🧹 Limpiar mesh del rival si venimos de otro duelo
+  // 🧹 Limpiar mesh del rival anterior
   if(Net.rivalMesh){
     escena.remove(Net.rivalMesh);
     Net.rivalMesh.traverse(function(o){ if(o.geometry) o.geometry.dispose(); });
     Net.rivalMesh = null;
   }
-  // Preparar escena y jugador SIN oleadas
   limpiarMapa(); limpiarEfectos();
   const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
   dificultadActual = DIFICULTAD.normal;
@@ -3396,6 +3546,8 @@ function empezarDuelo(){
   } else {
     Jugador.pos.set(0, 0, -10); Jugador.yaw = Math.PI;
   }
+  Jugador.vida = 100; Jugador.vivo = true;
+  if(Net.miRef) Net.miRef.update({ vida: 100, vivo: true });
 
   actualizarHUDStats(); actualizarHUDVida(); actualizarHUDArma(); actualizarHUDMunicion();
 
@@ -3421,7 +3573,6 @@ function crearRivalMesh(){
   const matCabeza = new THREE.MeshLambertMaterial({ color: 0xe8c8a0 });
   const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
 
-  // Enemigo pseudo (para raycast y daño)
   const pseudo = {
     get muerto(){ return !Net.rival.vivo; },
     get vida(){ return Net.rival.vida; },
@@ -3457,7 +3608,6 @@ function crearRivalMesh(){
   pieza(0.15, 0.60, 0.16, matCuerpo, 0.40, 1.18, 0.02, 'cuerpo');
   pieza(0.09, 0.11, 0.72, matOscuro, 0.30, 1.20, 0.42, 'cuerpo');
 
-  // Visor rojo
   const visorMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.06, 0.03), visorMat);
   visor.position.set(0, 1.72, 0.16);
@@ -3490,7 +3640,6 @@ function actualizarRival(dt){
   Net.rivalMesh.position.x = lerp(Net.rivalMesh.position.x, r.x, suav);
   Net.rivalMesh.position.y = lerp(Net.rivalMesh.position.y, r.y, suav);
   Net.rivalMesh.position.z = lerp(Net.rivalMesh.position.z, r.z, suav);
-  // 🧭 +π porque la cámara mira hacia -Z y el "frente" del mesh está en +Z local
   Net.rivalMesh.rotation.y = r.yaw + Math.PI;
   Net.rivalMesh.visible = r.vivo !== false;
 }
@@ -3528,6 +3677,22 @@ function terminarDuelo(ganadorId){
   document.getElementById('goPuntos').textContent = gane ? 100 : 0;
   document.getElementById('goMonedas').textContent = '+' + monedasGanadas;
   document.getElementById('goXp').textContent = '+' + xpGanada;
+
+  // Mostrar botones específicos de duelo
+  document.getElementById('dueloGameoverBtns').classList.remove('oculto');
+  document.getElementById('btnReintentar').classList.add('oculto');
+  document.getElementById('btnCambiarMapa').classList.add('oculto');
+  // Solo el host ve el botón REVANCHA; el guest ve "esperando..."
+  const btnRev = document.getElementById('btnRevancha');
+  const esp = document.getElementById('esperandoRevancha');
+  if(Net.host){
+    btnRev.classList.remove('oculto');
+    esp.classList.add('oculto');
+  } else {
+    btnRev.classList.add('oculto');
+    esp.classList.remove('oculto');
+  }
+
   document.getElementById('gameover').classList.remove('oculto');
   document.getElementById('controlesMovil').classList.add('oculto');
   actualizarAvisoRaton(); actualizarBotonPausa();
@@ -3537,7 +3702,7 @@ function terminarDuelo(ganadorId){
 function salirDeSala(){
   try{
     if(Net.miRef) Net.miRef.off();
-    if(Net.salaId) Net.db.ref('rooms/' + Net.salaId).off();
+    if(Net.salaId && Net.db) Net.db.ref('rooms/' + Net.salaId).off();
   }catch(e){}
   if(Net.miRef) Net.miRef.remove();
   if(Net.rivalMesh){
@@ -3550,6 +3715,8 @@ function salirDeSala(){
   Net.miRef = null;
   Net.rivalRef = null;
   Net.host = false;
+  Net.listenersActivos = false;
+  Net.revanchaEnCurso = false;
   Estado.dueloEmpezado = false;
 }
 
@@ -3616,7 +3783,7 @@ document.getElementById('btnVolverMenuPausa').addEventListener('click', function
   const btnPausa = document.getElementById('btnPausa');
   function manejarPausa(ev){
     if(ev){ ev.preventDefault(); ev.stopPropagation(); }
-    if(Estado.fase === 'jugando') pausar();
+    if(Estado.fase === 'jugando' || Estado.fase === 'duelo') pausar();
     else if(Estado.fase === 'pausa') reanudar();
   }
   btnPausa.addEventListener('pointerdown', manejarPausa, {passive:false});
@@ -3656,6 +3823,8 @@ document.getElementById('btnVolverMenuPausa').addEventListener('click', function
   bucle();
 
  /* ===== LOBBY 1v1 ===== */
+  poblarMapaSelector();
+
   document.getElementById('btnAbrir1v1').addEventListener('click', function(){
     Audio3D.init(); Audio3D.reanudar();
     Estado.fase = 'lobby';
@@ -3664,7 +3833,10 @@ document.getElementById('btnVolverMenuPausa').addEventListener('click', function
     document.getElementById('infoSala').classList.add('oculto');
     document.getElementById('btnComenzarDuelo').classList.add('oculto');
     mostrarEstadoLobby('');
+    actualizarMapaSelectorEstado();
     actualizarBotonPausa();
+    // Autenticar ya para que el usuario esté listo
+    inicializarFirebase().catch(e => console.error(e));
   });
 
   document.getElementById('btnCrearSala').addEventListener('click', function(){
@@ -3685,6 +3857,17 @@ document.getElementById('btnVolverMenuPausa').addEventListener('click', function
   document.getElementById('btnSalirLobby').addEventListener('click', function(){
     salirDeSala();
     document.getElementById('lobby1v1').classList.add('oculto');
+    mostrarMenuPrincipal();
+  });
+
+  /* ===== Revancha y salida desde gameover ===== */
+  document.getElementById('btnRevancha').addEventListener('click', function(){
+    solicitarRevancha();
+  });
+  document.getElementById('btnSalirDuelo').addEventListener('click', function(){
+    salirDeSala();
+    document.getElementById('gameover').classList.add('oculto');
+    document.getElementById('dueloGameoverBtns').classList.add('oculto');
     mostrarMenuPrincipal();
   });
 
