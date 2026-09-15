@@ -62,7 +62,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 #mensaje{position:absolute;left:0;right:0;top:26%;text-align:center;font-size:44px;font-weight:bold;letter-spacing:8px;color:#fff;text-shadow:0 0 18px rgba(61,220,107,.9),0 4px 12px #000;opacity:0;transition:opacity .3s;}
 #submensaje{position:absolute;left:0;right:0;top:36%;text-align:center;font-size:16px;letter-spacing:4px;color:var(--ambar);text-shadow:0 2px 8px #000;opacity:0;transition:opacity .3s;}
 
-#bottomLeft{position:absolute;left:22px;bottom:22px;}
+#bottomLeft{position:absolute;left:calc(22px + env(safe-area-inset-left, 0px));bottom:calc(22px + env(safe-area-inset-bottom, 0px));}
 #vidaWrap{width:210px;height:12px;background:rgba(0,0,0,.6);border:1px solid var(--borde);position:relative;overflow:hidden;}
 #vidaBarra{position:absolute;inset:0;width:100%;background:linear-gradient(90deg,#3ddc6b,#8dffab);transition:width .12s linear,background .2s;box-shadow:0 0 12px rgba(61,220,107,.6);}
 #vidaTxt{margin-top:5px;font-size:22px;font-weight:bold;letter-spacing:2px;color:#fff;text-shadow:0 0 8px rgba(0,0,0,.9);}
@@ -287,7 +287,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
         <div id="bottomLeft">
       <div id="vidaWrap"><div id="vidaBarra"></div></div>
       <div id="vidaTxt">100<small> VIDA</small></div>
-      <div id="vidasDuelo" class="oculto" style="margin-top:6px;font-size:14px;letter-spacing:3px;line-height:1.5;font-family:'Courier New',monospace;">
+            <div id="vidasDuelo" class="oculto" style="margin-top:6px;font-size:15px;letter-spacing:3px;line-height:1.5;font-family:'Courier New',monospace;background:rgba(0,0,0,.55);padding:6px 10px;border:1px solid rgba(255,77,107,.5);border-radius:4px;text-shadow:0 1px 3px #000;min-width:180px;">
         <div>TÚ: <span id="misVidas">❤❤❤❤❤</span></div>
         <div>RIVAL: <span id="rivalVidas">❤❤❤❤❤</span></div>
       </div>
@@ -3511,7 +3511,7 @@ async function conectarASala(codigo){
   Net.vidas = DUELO_VIDAS;
   Net.miRef.onDisconnect().remove();
 
-    // Escuchar mi propia vida y vidas
+      // Escuchar mi propia vida y vidas
   Net.miRef.on('value', (snap) => {
     const yo = snap.val();
     if(!yo) return;
@@ -3543,8 +3543,13 @@ async function conectarASala(codigo){
       actualizarHUDVidas();
     }
 
-    // 💥 Daño normal (umbral 1.5 para evitar falsos positivos por regen)
-    if(typeof yo.vida === 'number' && yo.vida < Jugador.vida - 1.5){
+    // 🏷️ Si yo escribí este campo, ignóralo (es mi propio eco, no daño)
+    if(yo.vidaWriter === Net.jugadorId){
+      return;
+    }
+
+    // 💥 Daño del rival. Aplicar la diferencia contra mi vida local.
+    if(typeof yo.vida === 'number' && yo.vida < Jugador.vida - 0.5){
       const dmg = Jugador.vida - yo.vida;
       aplicarDanoDuelo(dmg);
     }
@@ -3780,9 +3785,13 @@ function crearRivalMesh(){
       const nuevaVida = Math.max(0, (Net.rival.vida || 100) - dmg);
       Net.rival.vida = nuevaVida;
 
-      // 💥 Daño normal: todavía le queda HP
+            // 💥 Daño normal: todavía le queda HP
       if(nuevaVida > 0){
-        Net.rivalRef.update({ vida: nuevaVida, vivo: true });
+        Net.rivalRef.update({
+          vida: nuevaVida,
+          vivo: true,
+          vidaWriter: Net.jugadorId   // 🏷️ YO soy el que escribió este daño
+        });
         return;
       }
 
@@ -3807,6 +3816,7 @@ function crearRivalMesh(){
           vida: 100,
           vivo: true,
           lives: nuevasVidas,
+          vidaWriter: Net.jugadorId,
           x: posRival.x, y: 0, z: posRival.z, yaw: posRival.yaw
         });
         mostrarKillBadge('¡ELIMINADO! ' + nuevasVidas + ' ❤', '#ff4d6b');
@@ -3877,7 +3887,8 @@ function enviarMiEstado(){
   Net.miRef.update({
     x: Jugador.pos.x, y: Jugador.pos.y, z: Jugador.pos.z,
     yaw: Jugador.yaw, pitch: Jugador.pitch,
-    vida: Math.round(Jugador.vida)   // ← sincronizar regen
+    vida: Math.round(Jugador.vida),
+    vidaWriter: Net.jugadorId   // 🏷️ marco que YO escribí este valor
   });
 }
 
