@@ -1611,8 +1611,9 @@ const raycaster = new THREE.Raycaster();
 const _v1 = V3(), _v2 = V3();
 
 function dispararJugador(){
-  // ⏸️ No disparar si hay pausa en curso
+  // ⏸️ No disparar si hay pausa en curso (mía o del rival)
   if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
+  if(Net.pausedBy) return;  // ← protección extra: si cualquiera pausó, no disparo
   const arma = armaActual();
   if(Jugador.recargando) return;
 
@@ -3528,21 +3529,25 @@ async function conectarASala(codigo){
     }
   });
 
-  // ⏸️ Escuchar si el rival pausa o reanuda
+    // ⏸️ Escuchar si el rival pausa o reanuda (con logs para diagnóstico)
   Net.db.ref('rooms/' + codigo + '/pausedBy').on('value', (snap) => {
     const byId = snap.val();
+    console.log('⏸️ pausedBy cambió:', byId, '· Mi id:', Net.jugadorId, '· Mi fase:', Estado.fase);
     Net.pausedBy = byId;
 
-    // Si el que pausó soy yo, no hago nada (yo controlo mi propia pausa)
-    if(byId === Net.jugadorId) return;
+    if(byId === Net.jugadorId) return;  // Yo mismo pausé, ignora
 
     if(!byId){
-      // Nadie pausado (o el rival reanudó)
+      // Nadie pausado: si estoy en pausaRival, reanudar
       if(Estado.fase === 'pausaRival') desactivarPausaRival();
     } else {
-      // El rival pausó
+      // Alguien más pausó. Solo activar si estoy jugando el duelo.
       if(Estado.fase === 'duelo'){
         activarPausaRival(Net.rival.nombre || 'RIVAL');
+      } else if(Estado.fase === 'pausaRival'){
+        // Ya estaba activado
+      } else {
+        console.warn('⏸️ El rival pausó pero mi fase no es duelo:', Estado.fase);
       }
     }
   });
@@ -3676,6 +3681,9 @@ function crearRivalMesh(){
     get vida(){ return Net.rival.vida; },
     recibirDano: function(dmg, esCabeza, desde){
       if(!Net.rivalRef) return;
+      // ⏸️ Si YO estoy en pausa o el rival pausó, no procesar daño
+      if(Net.pausedBy) return;
+      if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
       const nuevoVida = Math.max(0, (Net.rival.vida || 100) - dmg);
       Net.rival.vida = nuevoVida;
       Net.rivalRef.update({ vida: nuevoVida, vivo: nuevoVida > 0 });
@@ -3718,8 +3726,9 @@ function crearRivalMesh(){
 
 function aplicarDanoDuelo(dmg){
   if(!Jugador.vivo) return;
-  // ⏸️ No recibir daño mientras cualquiera esté en pausa
+  // ⏸️ No recibir daño mientras cualquiera esté en pausa (mi pausa o del rival)
   if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
+  if(Net.pausedBy) return;  // ← extra: aunque mi fase no haya cambiado aún
   Jugador.vida = Math.max(0, Jugador.vida - dmg);
   Jugador.tDano = 0;
   flashDanoT = 0.35;
@@ -3753,7 +3762,28 @@ function enviarMiEstado(){
 }
 
 function terminarDuelo(ganadorId){
-  if(Estado.fase !== 'duelo') return;
+  // ✅ Acepta tanto duelo normal como duelo con pausa del rival en curso
+  if(Estado.fase !== 'duelo' && Estado.fase !== 'pausaRival') return;
+
+  // 🧹 Si estábamos en pausaRival, cerrar limpio antes de mostrar gameover
+  if(Estado.fase === 'pausaRival'){
+    const pausaEl = document.getElementById('pausa');
+    if(pausaEl) pausaEl.classList.add('oculto');
+    const titulo = document.querySelector('#pausa .titulo');
+    if(titulo){ titulo.textContent = 'PAUSA'; titulo.style.color = ''; }
+    const sub = document.querySelector('#pausa .subtitulo');
+    if(sub){ sub.textContent = 'OPERACIÓN SUSPENDIDA'; }
+    document.getElementById('btnReanudar').style.display = '';
+    document.getElementById('btnReiniciarPausa').style.display = '';
+    document.getElementById('btnVolverMenuPausa').style.display = '';
+  }
+
+  // ⏸️ Apagar la pausa en Firebase para no arrastrarla a la próxima partida
+  if(Net.salaId && Net.db){
+    Net.db.ref('rooms/' + Net.salaId + '/pausedBy').set(null).catch(()=>{});
+  }
+  Net.pausedBy = null;
+
   const gane = ganadorId === Net.jugadorId;
   Estado.fase = 'gameover';
   document.getElementById('crosshair').classList.remove('activa');
@@ -3782,6 +3812,7 @@ function terminarDuelo(ganadorId){
   document.getElementById('dueloGameoverBtns').classList.remove('oculto');
   document.getElementById('btnReintentar').classList.add('oculto');
   document.getElementById('btnCambiarMapa').classList.add('oculto');
+
   // Solo el host ve el botón REVANCHA; el guest ve "esperando..."
   const btnRev = document.getElementById('btnRevancha');
   const esp = document.getElementById('esperandoRevancha');
