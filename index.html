@@ -284,9 +284,13 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
     <div id="submensaje"></div>
     <div id="mouseHint">🖱 RATÓN LIBRE · BOTÓN CENTRAL PARA GIRAR</div>
 
-    <div id="bottomLeft">
+        <div id="bottomLeft">
       <div id="vidaWrap"><div id="vidaBarra"></div></div>
       <div id="vidaTxt">100<small> VIDA</small></div>
+      <div id="vidasDuelo" class="oculto" style="margin-top:6px;font-size:14px;letter-spacing:3px;line-height:1.5;font-family:'Courier New',monospace;">
+        <div>TÚ: <span id="misVidas">❤❤❤❤❤</span></div>
+        <div>RIVAL: <span id="rivalVidas">❤❤❤❤❤</span></div>
+      </div>
     </div>
     <div id="bottomRight">
       <div id="armaNombre">FUSIL DE ASALTO</div>
@@ -481,6 +485,14 @@ const CONFIG = {
   MAX_PARTICULAS:460, MAX_TRAZADORAS:44,
   OLEADA_BASE:4, OLEADA_INCREMENTO:2, INTERMEDIO:2.0
 };
+
+/* ============================================================
+   CONFIGURACIÓN DEL DUELO 1v1
+   ============================================================ */
+const DUELO_VIDAS = 5;             // Vidas por jugador
+const DUELO_REGEN_RETARDO = 3.0;   // Segundos sin daño para regenerar
+const DUELO_REGEN_VEL = 25;        // HP por segundo de regeneración
+  
 
 /* ♾️ MUNICIÓN INFINITA (siempre activa) */
 const MUNICION_INFINITA = true;
@@ -2730,6 +2742,34 @@ function actualizarHUDVida(){
   const urgencia = clamp(1 - Jugador.vida / 55, 0, 1);
   document.getElementById('vignette').style.opacity = (urgencia * 0.75).toFixed(3);
 }
+
+function actualizarHUDVidas(){
+  const el = document.getElementById('vidasDuelo');
+  if(!el) return;
+  const enDuelo = (Estado.fase === 'duelo' || Estado.fase === 'pausa' || Estado.fase === 'pausaRival');
+  el.classList.toggle('oculto', !enDuelo);
+  if(!enDuelo) return;
+
+  const misV = (typeof Net.vidas === 'number') ? Net.vidas : 0;
+  const rivV = (Net.rival && typeof Net.rival.vidas === 'number') ? Net.rival.vidas : 0;
+
+  let misHtml = '';
+  for(let i = 0; i < DUELO_VIDAS; i++){
+    misHtml += (i < misV)
+      ? '<span style="color:#ff4d6b;text-shadow:0 0 6px rgba(255,77,107,.8)">❤</span>'
+      : '<span style="color:#444">❤</span>';
+  }
+  let rivHtml = '';
+  for(let i = 0; i < DUELO_VIDAS; i++){
+    rivHtml += (i < rivV)
+      ? '<span style="color:#ff4d6b;text-shadow:0 0 6px rgba(255,77,107,.8)">❤</span>'
+      : '<span style="color:#444">❤</span>';
+  }
+
+  document.getElementById('misVidas').innerHTML = misHtml;
+  document.getElementById('rivalVidas').innerHTML = rivHtml;
+}
+  
 function actualizarHUDStats(){
   document.getElementById('hOleada').textContent = Estado.oleada;
   document.getElementById('hBajas').textContent = Estado.bajas;
@@ -3303,12 +3343,13 @@ const Net = {
   host: false,
   miRef: null,
   rivalRef: null,
-  rival: { x:0, y:0, z:-10, yaw:0, pitch:0, vida:100, vivo:true, nombre:'—' },
+  rival: { x:0, y:0, z:-10, yaw:0, pitch:0, vida:100, vivo:true, vidas:5, nombre:'—' },
   rivalMesh: null,
   ultimoEnvio: 0,
   intervaloEnvio: 55,
   listenersActivos: false,
   pausedBy: null,
+  vidas: 5,
   revanchaEnCurso: false
 };
 
@@ -3455,25 +3496,55 @@ async function conectarASala(codigo){
 
   Net.miRef = Net.db.ref('rooms/' + codigo + '/players/' + Net.jugadorId);
   const posInicial = Net.host ? { x:0, z:10, yaw:0 } : { x:0, z:-10, yaw:Math.PI };
-  await Net.miRef.set({
+    await Net.miRef.set({
     nombre: Net.jugadorNombre,
     uid: Net.uid,
     x: posInicial.x, y: 0, z: posInicial.z,
     yaw: posInicial.yaw, pitch: 0,
     vida: 100,
     vivo: true,
+    lives: DUELO_VIDAS,   // ← NUEVO
     host: Net.host,
     conectadoEn: firebase.database.ServerValue.TIMESTAMP,
     updatedAt: firebase.database.ServerValue.TIMESTAMP
   });
+  Net.vidas = DUELO_VIDAS;
   Net.miRef.onDisconnect().remove();
 
-  // Escuchar mi propia vida
+    // Escuchar mi propia vida y vidas
   Net.miRef.on('value', (snap) => {
     const yo = snap.val();
     if(!yo) return;
-    if(Estado.fase !== 'duelo' && Estado.fase !== 'jugando') return;
-    if(typeof yo.vida === 'number' && yo.vida < Jugador.vida - 0.5){
+    if(Estado.fase !== 'duelo') return;
+
+    const vidasRemotas = (typeof yo.lives === 'number') ? yo.lives : DUELO_VIDAS;
+
+    // 🎉 ¿Respawn? (me bajaron una vida y ya estoy vivo de nuevo)
+    if(vidasRemotas < Net.vidas && yo.vivo !== false){
+      Net.vidas = vidasRemotas;
+      Jugador.vida = 100;
+      Jugador.vivo = true;
+      Jugador.tDano = 0;
+      tiempoJugadorInvulnerable = 1.5;
+      if(typeof yo.x === 'number' && typeof yo.z === 'number'){
+        Jugador.pos.set(yo.x, 0, yo.z);
+        if(typeof yo.yaw === 'number') Jugador.yaw = yo.yaw;
+      }
+      actualizarHUDVida();
+      actualizarHUDVidas();
+      mostrarMensaje('¡RESPAWN!', 'VIDAS RESTANTES: ' + vidasRemotas, 1.8);
+      Audio3D.tono(660, 0.15, 0.2, 'triangle', 990);
+      return;
+    }
+
+    // Actualizar contador visual de vidas
+    if(vidasRemotas !== Net.vidas){
+      Net.vidas = vidasRemotas;
+      actualizarHUDVidas();
+    }
+
+    // 💥 Daño normal (umbral 1.5 para evitar falsos positivos por regen)
+    if(typeof yo.vida === 'number' && yo.vida < Jugador.vida - 1.5){
       const dmg = Jugador.vida - yo.vida;
       aplicarDanoDuelo(dmg);
     }
@@ -3492,11 +3563,13 @@ async function conectarASala(codigo){
       const r = rivales[0].data;
       Net.rival.x = r.x || 0; Net.rival.y = r.y || 0; Net.rival.z = r.z || 0;
       Net.rival.yaw = r.yaw || 0; Net.rival.pitch = r.pitch || 0;
-      Net.rival.vida = typeof r.vida === 'number' ? r.vida : 100;
+            Net.rival.vida = typeof r.vida === 'number' ? r.vida : 100;
       Net.rival.vivo = r.vivo !== false;
+      Net.rival.vidas = typeof r.lives === 'number' ? r.lives : DUELO_VIDAS;
       Net.rival.nombre = r.nombre || 'RIVAL';
       Net.rivalRef = Net.db.ref('rooms/' + codigo + '/players/' + rivales[0].id);
       actualizarJugadoresLobby([Net.jugadorNombre, Net.rival.nombre]);
+      actualizarHUDVidas();
       if(Net.host && rivales.length === 1){
         document.getElementById('btnComenzarDuelo').classList.remove('oculto');
       }
@@ -3563,6 +3636,21 @@ async function conectarASala(codigo){
 
 async function comenzarDuelo(){
   if(!Net.host) return;
+
+  // Resetear vidas, vida y estado de ambos jugadores
+  const updates = {};
+  updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/lives'] = DUELO_VIDAS;
+  updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/vida'] = 100;
+  updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/vivo'] = true;
+
+  if(Net.rivalRef){
+    const rivalId = Net.rivalRef.key;
+    updates['rooms/' + Net.salaId + '/players/' + rivalId + '/lives'] = DUELO_VIDAS;
+    updates['rooms/' + Net.salaId + '/players/' + rivalId + '/vida'] = 100;
+    updates['rooms/' + Net.salaId + '/players/' + rivalId + '/vivo'] = true;
+  }
+
+  await Net.db.ref().update(updates);
   await Net.db.ref('rooms/' + Net.salaId).update({ empezado: true, mapa: mapaSeleccionado });
 }
 
@@ -3584,17 +3672,19 @@ async function solicitarRevancha(){
     const updates = {};
     const posHost = Net.host ? { x:0, z:10, yaw:0 } : { x:0, z:-10, yaw:Math.PI };
     const posGuest = Net.host ? { x:0, z:-10, yaw:Math.PI } : { x:0, z:10, yaw:0 };
-    // Mi propia posición
+        // Mi propia posición + vidas
     updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/vida'] = 100;
     updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/vivo'] = true;
+    updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/lives'] = DUELO_VIDAS;
     updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/x'] = posHost.x;
     updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/z'] = posHost.z;
     updates['rooms/' + Net.salaId + '/players/' + Net.jugadorId + '/yaw'] = posHost.yaw;
-    // Rival
+    // Rival + vidas
     if(Net.rivalRef){
       const rivalId = Net.rivalRef.key;
       updates['rooms/' + Net.salaId + '/players/' + rivalId + '/vida'] = 100;
       updates['rooms/' + Net.salaId + '/players/' + rivalId + '/vivo'] = true;
+      updates['rooms/' + Net.salaId + '/players/' + rivalId + '/lives'] = DUELO_VIDAS;
       updates['rooms/' + Net.salaId + '/players/' + rivalId + '/x'] = posGuest.x;
       updates['rooms/' + Net.salaId + '/players/' + rivalId + '/z'] = posGuest.z;
       updates['rooms/' + Net.salaId + '/players/' + rivalId + '/yaw'] = posGuest.yaw;
@@ -3623,10 +3713,10 @@ function empezarDuelo(){
   }
   limpiarMapa(); limpiarEfectos();
   const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
-  dificultadActual = DIFICULTAD.normal;
+    dificultadActual = DIFICULTAD.normal;
   CONFIG.VIDA_MAX = 100;
-  CONFIG.REGEN_RETARDO = 9999;
-  CONFIG.REGEN_VEL = 0;
+  CONFIG.REGEN_RETARDO = DUELO_REGEN_RETARDO;   // ← 3s
+  CONFIG.REGEN_VEL = DUELO_REGEN_VEL;           // ← 25 HP/s
   aplicarEntornoMapa(mapa);
   mapa.construir();
   for(let i=0;i<enemigos.length;i++) enemigos[i].destruir();
@@ -3666,6 +3756,8 @@ function empezarDuelo(){
   Audio3D.reanudar();
 
   crearRivalMesh();
+  Net.vidas = DUELO_VIDAS;
+  actualizarHUDVidas();
   mostrarMensaje('¡DUELO 1 VS 1!', 'PRIMERO EN DERRIBAR AL OTRO', 3);
 }
 
@@ -3676,7 +3768,7 @@ function crearRivalMesh(){
   const matCabeza = new THREE.MeshLambertMaterial({ color: 0xe8c8a0 });
   const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
 
-  const pseudo = {
+    const pseudo = {
     get muerto(){ return !Net.rival.vivo; },
     get vida(){ return Net.rival.vida; },
     recibirDano: function(dmg, esCabeza, desde){
@@ -3684,14 +3776,41 @@ function crearRivalMesh(){
       // ⏸️ Si YO estoy en pausa o el rival pausó, no procesar daño
       if(Net.pausedBy) return;
       if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
-      const nuevoVida = Math.max(0, (Net.rival.vida || 100) - dmg);
-      Net.rival.vida = nuevoVida;
-      Net.rivalRef.update({ vida: nuevoVida, vivo: nuevoVida > 0 });
-      if(nuevoVida <= 0){
+
+      const nuevaVida = Math.max(0, (Net.rival.vida || 100) - dmg);
+      Net.rival.vida = nuevaVida;
+
+      // 💥 Daño normal: todavía le queda HP
+      if(nuevaVida > 0){
+        Net.rivalRef.update({ vida: nuevaVida, vivo: true });
+        return;
+      }
+
+      // ☠️ ¡KILL! Le restamos una vida
+      const vidasActuales = Net.rival.vidas || DUELO_VIDAS;
+      const nuevasVidas = Math.max(0, vidasActuales - 1);
+      Net.rival.vidas = nuevasVidas;
+
+      if(nuevasVidas <= 0){
+        // 🏆 ¡Victoria final! El rival se quedó sin vidas
+        Net.rivalRef.update({ vida: 0, vivo: false, lives: 0 });
         Net.db.ref('rooms/' + Net.salaId).update({
           ganador: Net.jugadorId,
           ganadorNombre: Net.jugadorNombre
         });
+        mostrarMensaje('¡VICTORIA FINAL!', 'RIVAL SIN VIDAS', 2.5);
+        Audio3D.jefeDerrotado();
+      } else {
+        // 🔄 Respawn del rival con vida y posición reseteadas
+        const posRival = Net.host ? { x:0, z:-10, yaw:Math.PI } : { x:0, z:10, yaw:0 };
+        Net.rivalRef.update({
+          vida: 100,
+          vivo: true,
+          lives: nuevasVidas,
+          x: posRival.x, y: 0, z: posRival.z, yaw: posRival.yaw
+        });
+        mostrarKillBadge('¡ELIMINADO! ' + nuevasVidas + ' ❤', '#ff4d6b');
+        Audio3D.baja();
       }
     }
   };
@@ -3757,7 +3876,8 @@ function enviarMiEstado(){
   if(!Net.miRef) return;
   Net.miRef.update({
     x: Jugador.pos.x, y: Jugador.pos.y, z: Jugador.pos.z,
-    yaw: Jugador.yaw, pitch: Jugador.pitch
+    yaw: Jugador.yaw, pitch: Jugador.pitch,
+    vida: Math.round(Jugador.vida)   // ← sincronizar regen
   });
 }
 
@@ -3824,8 +3944,9 @@ function terminarDuelo(ganadorId){
     esp.classList.remove('oculto');
   }
 
-  document.getElementById('gameover').classList.remove('oculto');
+    document.getElementById('gameover').classList.remove('oculto');
   document.getElementById('controlesMovil').classList.add('oculto');
+  document.getElementById('vidasDuelo').classList.add('oculto');
   actualizarAvisoRaton(); actualizarBotonPausa();
   if(document.pointerLockElement) document.exitPointerLock();
 }
@@ -3854,9 +3975,14 @@ function salirDeSala(){
   Net.miRef = null;
   Net.rivalRef = null;
   Net.host = false;
-  Net.listenersActivos = false;
+    Net.listenersActivos = false;
   Net.revanchaEnCurso = false;
+  Net.vidas = DUELO_VIDAS;
+  Net.rival.vidas = DUELO_VIDAS;
+  Net.pausedBy = null;
   Estado.dueloEmpezado = false;
+  const vidasEl = document.getElementById('vidasDuelo');
+  if(vidasEl) vidasEl.classList.add('oculto');
 }
 
 /* ============================================================
