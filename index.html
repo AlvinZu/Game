@@ -1611,6 +1611,8 @@ const raycaster = new THREE.Raycaster();
 const _v1 = V3(), _v2 = V3();
 
 function dispararJugador(){
+  // ⏸️ No disparar si hay pausa en curso
+  if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
   const arma = armaActual();
   if(Jugador.recargando) return;
 
@@ -2345,7 +2347,7 @@ let fasePreviaPausa = 'jugando';
 
 function pausar(){
   if(Estado.fase !== 'jugando' && Estado.fase !== 'duelo') return;
-  fasePreviaPausa = Estado.fase;   // ← guardar de dónde venimos
+  fasePreviaPausa = Estado.fase;
   Estado.fase = 'pausa';
   document.getElementById('pausa').classList.remove('oculto');
   document.getElementById('crosshair').classList.remove('activa');
@@ -2354,15 +2356,81 @@ function pausar(){
   document.getElementById('scope').classList.remove('activa');
   actualizarAvisoRaton(); actualizarBotonPausa();
   if(document.pointerLockElement) document.exitPointerLock();
+
+  // ⏸️ Notificar al rival si estamos en duelo
+  if(fasePreviaPausa === 'duelo' && Net.salaId && Net.db && Net.jugadorId){
+    Net.db.ref('rooms/' + Net.salaId).update({ pausedBy: Net.jugadorId });
+  }
 }
 function reanudar(){
   if(Estado.fase !== 'pausa') return;
-  Estado.fase = fasePreviaPausa || 'jugando';   // ← volver a donde estábamos
+
+  // ▶️ Avisar al rival que ya reanudamos
+  if(fasePreviaPausa === 'duelo' && Net.salaId && Net.db && Net.jugadorId){
+    Net.db.ref('rooms/' + Net.salaId).update({ pausedBy: null });
+  }
+
+  Estado.fase = fasePreviaPausa || 'jugando';
   document.getElementById('pausa').classList.add('oculto');
   document.getElementById('crosshair').classList.add('activa');
   pedirBloqueo(); actualizarAvisoRaton(); actualizarBotonPausa();
   Audio3D.reanudar();
 }
+
+/* ⏸️ El rival pausó: congelar mi juego y mostrar mensaje */
+function activarPausaRival(nombreRival){
+  if(Estado.fase === 'pausaRival') return;
+  Estado.fase = 'pausaRival';
+
+  // Congelar inputs
+  Input.ratonIzq = false; Input.ratonDer = false; Input.arrastre = false;
+  Movil.disparando = false;
+  Movil.joyX = 0; Movil.joyY = 0;
+
+  // UI
+  document.getElementById('crosshair').classList.remove('activa');
+  document.getElementById('scope').classList.remove('activa');
+  document.getElementById('pausa').classList.remove('oculto');
+
+  // Cambiar el texto del título dentro de #pausa
+  const titulo = document.querySelector('#pausa .titulo');
+  if(titulo){ titulo.textContent = 'RIVAL EN PAUSA'; titulo.style.color = '#ffb347'; }
+
+  const sub = document.querySelector('#pausa .subtitulo');
+  if(sub){ sub.textContent = nombreRival + ' HA PAUSADO LA PARTIDA'; }
+
+  // Ocultar botones (no puedo hacer nada)
+  document.getElementById('btnReanudar').style.display = 'none';
+  document.getElementById('btnReiniciarPausa').style.display = 'none';
+  document.getElementById('btnVolverMenuPausa').style.display = 'none';
+
+  actualizarAvisoRaton(); actualizarBotonPausa();
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+
+/* ▶️ El rival reanudó: restaurar juego */
+function desactivarPausaRival(){
+  if(Estado.fase !== 'pausaRival') return;
+  Estado.fase = 'duelo';
+
+  // Restaurar UI
+  document.getElementById('pausa').classList.add('oculto');
+  document.getElementById('crosshair').classList.add('activa');
+
+  const titulo = document.querySelector('#pausa .titulo');
+  if(titulo){ titulo.textContent = 'PAUSA'; titulo.style.color = ''; }
+  const sub = document.querySelector('#pausa .subtitulo');
+  if(sub){ sub.textContent = 'OPERACIÓN SUSPENDIDA'; }
+
+  document.getElementById('btnReanudar').style.display = '';
+  document.getElementById('btnReiniciarPausa').style.display = '';
+  document.getElementById('btnVolverMenuPausa').style.display = '';
+
+  mostrarMensaje('RIVAL CONTINUÓ', '', 1.5);
+  pedirBloqueo(); actualizarAvisoRaton(); actualizarBotonPausa();
+  Audio3D.reanudar();
+}
+
 function terminarPartida(){
   Estado.fase = 'gameover';
   document.getElementById('crosshair').classList.remove('activa');
@@ -3239,6 +3307,7 @@ const Net = {
   ultimoEnvio: 0,
   intervaloEnvio: 55,
   listenersActivos: false,
+  pausedBy: null,
   revanchaEnCurso: false
 };
 
@@ -3459,6 +3528,25 @@ async function conectarASala(codigo){
     }
   });
 
+  // ⏸️ Escuchar si el rival pausa o reanuda
+  Net.db.ref('rooms/' + codigo + '/pausedBy').on('value', (snap) => {
+    const byId = snap.val();
+    Net.pausedBy = byId;
+
+    // Si el que pausó soy yo, no hago nada (yo controlo mi propia pausa)
+    if(byId === Net.jugadorId) return;
+
+    if(!byId){
+      // Nadie pausado (o el rival reanudó)
+      if(Estado.fase === 'pausaRival') desactivarPausaRival();
+    } else {
+      // El rival pausó
+      if(Estado.fase === 'duelo'){
+        activarPausaRival(Net.rival.nombre || 'RIVAL');
+      }
+    }
+  });
+
   // Escuchar ganador
   Net.db.ref('rooms/' + codigo + '/ganador').on('value', (snap) => {
     const g = snap.val();
@@ -3630,6 +3718,8 @@ function crearRivalMesh(){
 
 function aplicarDanoDuelo(dmg){
   if(!Jugador.vivo) return;
+  // ⏸️ No recibir daño mientras cualquiera esté en pausa
+  if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
   Jugador.vida = Math.max(0, Jugador.vida - dmg);
   Jugador.tDano = 0;
   flashDanoT = 0.35;
@@ -3711,6 +3801,14 @@ function terminarDuelo(ganadorId){
 
 function salirDeSala(){
   try{
+    // ⏸️ Si yo era el que pausó, liberar la pausa
+    if(Net.salaId && Net.db && Net.jugadorId){
+      Net.db.ref('rooms/' + Net.salaId + '/pausedBy').once('value').then((snap) => {
+        if(snap.val() === Net.jugadorId){
+          Net.db.ref('rooms/' + Net.salaId).update({ pausedBy: null });
+        }
+      }).catch(()=>{});
+    }
     if(Net.miRef) Net.miRef.off();
     if(Net.salaId && Net.db) Net.db.ref('rooms/' + Net.salaId).off();
   }catch(e){}
