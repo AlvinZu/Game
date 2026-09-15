@@ -1,4 +1,4 @@
-const CACHE_NAME = 'operacion-arena-v4';
+const CACHE_NAME = 'operacion-arena-v5';
 const urlsToCache = [
   './index.html',
   './manifest.json',
