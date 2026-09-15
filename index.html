@@ -2931,6 +2931,7 @@ function bucle(){
       Net.ultimoEnvio = ahora;
       enviarMiEstado();
     }
+    sincronizarRegen();  // ← NUEVO
   } else if(Estado.fase === 'menu' || Estado.fase === 'seleccion' || Estado.fase === 'tienda' || Estado.fase === 'logros' || Estado.fase === 'arsenal' || Estado.fase === 'lobby'){
     const t = performance.now() * 0.00013;
     camara.position.set(Math.cos(t) * 16, 6.5, Math.sin(t) * 16 + 4);
@@ -3350,6 +3351,8 @@ const Net = {
   listenersActivos: false,
   pausedBy: null,
   vidas: 5,
+  ultimoDanoRecibidoTs: 0,   // ← NUEVO: cuándo me dieron el último golpe
+  ultimaVidaEnviada: 100,    // ← NUEVO: última vida que sincronicé por regen
   revanchaEnCurso: false
 };
 
@@ -3855,11 +3858,12 @@ function crearRivalMesh(){
 
 function aplicarDanoDuelo(dmg){
   if(!Jugador.vivo) return;
-  // ⏸️ No recibir daño mientras cualquiera esté en pausa (mi pausa o del rival)
   if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
-  if(Net.pausedBy) return;  // ← extra: aunque mi fase no haya cambiado aún
+  if(Net.pausedBy) return;
   Jugador.vida = Math.max(0, Jugador.vida - dmg);
   Jugador.tDano = 0;
+  Net.ultimoDanoRecibidoTs = performance.now();  // ← NUEVO
+  Net.ultimaVidaEnviada = Jugador.vida;           // ← NUEVO (ya está sincronizado)
   flashDanoT = 0.35;
   Jugador.shakeT = 0.28;
   Jugador.shakeMag = clamp(dmg * 0.006, 0.02, 0.09);
@@ -3869,6 +3873,26 @@ function aplicarDanoDuelo(dmg){
     Jugador.vivo = false;
     if(Net.miRef) Net.miRef.update({ vivo: false, vida: 0 });
   }
+}
+
+/* 💚 Sincroniza la vida regenerada al rival, sin competir con el daño */
+function sincronizarRegen(){
+  if(!Net.miRef) return;
+  if(Estado.fase !== 'duelo') return;
+  if(Net.pausedBy) return;
+
+  // ⏱️ Esperar al menos 800ms tras el último daño recibido (evita races)
+  const ahora = performance.now();
+  if(ahora - (Net.ultimoDanoRecibidoTs || 0) < 800) return;
+
+  const vidaActual = Math.round(Jugador.vida);
+  if(Math.abs(vidaActual - (Net.ultimaVidaEnviada || 100)) < 3) return;  // umbral
+
+  Net.ultimaVidaEnviada = vidaActual;
+  Net.miRef.update({
+    vida: vidaActual,
+    vidaWriter: Net.jugadorId
+  });
 }
 
 function actualizarRival(dt){
@@ -3884,11 +3908,11 @@ function actualizarRival(dt){
 
 function enviarMiEstado(){
   if(!Net.miRef) return;
+  // ⚠️ NO escribimos 'vida' aquí. Solo el atacante escribe 'vida' al disparar.
+  // La regeneración se sincroniza aparte en sincronizarRegen().
   Net.miRef.update({
     x: Jugador.pos.x, y: Jugador.pos.y, z: Jugador.pos.z,
-    yaw: Jugador.yaw, pitch: Jugador.pitch,
-    vida: Math.round(Jugador.vida),
-    vidaWriter: Net.jugadorId   // 🏷️ marco que YO escribí este valor
+    yaw: Jugador.yaw, pitch: Jugador.pitch
   });
 }
 
