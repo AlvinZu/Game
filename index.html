@@ -3248,7 +3248,7 @@ async function inicializarFirebase(){
   if(typeof firebase === 'undefined'){ console.error('Firebase SDK no cargado'); return false; }
   try{
     if(!firebase.apps || firebase.apps.length === 0){
-      firebase.initializeApp(FirebaseConfig);
+      firebase.initializeApp(firebaseConfig);
     }
     Net.auth = firebase.auth();
     Net.db = firebase.database();
