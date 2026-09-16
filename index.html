@@ -4412,7 +4412,35 @@ if(typeof THREE === 'undefined'){
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').then(reg => console.log('SW registrado.', reg)).catch(err => console.error('Error SW:', err));
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        console.log('SW registrado.', reg);
+        // 🔄 Buscar actualización cada vez que abre la app
+        reg.update().catch(()=>{});
+        // Si detecta nueva versión lista, avisa y refresca
+        reg.addEventListener('updatefound', () => {
+          const nuevoSW = reg.installing;
+          if(!nuevoSW) return;
+          nuevoSW.addEventListener('statechange', () => {
+            if(nuevoSW.state === 'installed' && navigator.serviceWorker.controller){
+              console.log('🆕 Nueva versión detectada, recargando...');
+              // Forzar la activación inmediata
+              nuevoSW.postMessage('skipWaiting');
+              // Recargar la página después de un pequeño delay
+              setTimeout(() => window.location.reload(), 500);
+            }
+          });
+        });
+      })
+      .catch(err => console.error('Error SW:', err));
+
+    // Si el SW toma control por primera vez en esta pestaña, recargar
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if(recargando) return;
+      recargando = true;
+      window.location.reload();
+    });
   });
 }
 </script>
