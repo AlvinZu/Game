@@ -490,8 +490,11 @@ const CONFIG = {
    CONFIGURACIÓN DEL DUELO 1v1
    ============================================================ */
 const DUELO_VIDAS = 5;             // Vidas por jugador
+const DUELO_VIDA_MAX = 500;        // HP por vida en duelo
 const DUELO_REGEN_RETARDO = 3.0;   // Segundos sin daño para regenerar
-const DUELO_REGEN_VEL = 25;        // HP por segundo de regeneración
+const DUELO_REGEN_VEL = 80;        // HP por segundo de regeneración
+const DUELO_ARENA_SIZE = 60;       // Tamaño de arena en duelo (campaña usa 30)
+const DUELO_STEP_UP = 0.75;        // Altura máxima de escalón subible
   
 
 /* ♾️ MUNICIÓN INFINITA (siempre activa) */
@@ -2315,6 +2318,7 @@ function actualizarBotonPausa(){
 function iniciarPartida(){
   Estado.dueloEmpezado = false;
   limpiarMapa(); limpiarEfectos();
+  CONFIG.ARENA = 30;   // ← Resetear al tamaño de campaña
   const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
   dificultadActual = DIFICULTAD[mapa.nivel] || DIFICULTAD.normal;
   CONFIG.VIDA_MAX = dificultadActual.vidaMax;
@@ -2848,10 +2852,42 @@ function actualizarJugador(dt){
   J.vel.z = lerp(J.vel.z, velDeseadaZ, suavizado);
   const saltoSolicitado = ES_MOVIL ? Movil.saltar : Input.teclas['Space'];
   if(saltoSolicitado && J.enSuelo){ J.vel.y = CONFIG.SALTO; J.enSuelo = false; Movil.saltar = false; Audio3D.tono(180, 0.06, 0.05, 'sine', 120); }
-  J.vel.y -= CONFIG.GRAVEDAD * dt;
+   J.vel.y -= CONFIG.GRAVEDAD * dt;
   J.pos.x += J.vel.x * dt; J.pos.z += J.vel.z * dt; J.pos.y += J.vel.y * dt;
-  if(J.pos.y <= 0){ J.pos.y = 0; J.vel.y = 0; J.enSuelo = true; }
+
+  // 🪜 Step-up: subir sobre cajas bajas al tocarlas
   const alturaObj = J.agachado ? CONFIG.ALTURA_AGACHADO : CONFIG.ALTURA_PIE;
+  const PASO_MAX = DUELO_STEP_UP;
+  for(let i = 0; i < colisionadores.length; i++){
+    const c = colisionadores[i];
+    const difY = c.max.y - J.pos.y;
+    if(difY <= 0 || difY > PASO_MAX) continue;
+    if(J.pos.x > c.min.x - CONFIG.RADIO_JUGADOR && J.pos.x < c.max.x + CONFIG.RADIO_JUGADOR &&
+       J.pos.z > c.min.z - CONFIG.RADIO_JUGADOR && J.pos.z < c.max.z + CONFIG.RADIO_JUGADOR){
+      J.pos.y = c.max.y;
+      J.vel.y = 0;
+    }
+  }
+
+  // 🦶 Detectar el suelo más alto bajo el jugador (torres, escalones, cajas)
+  let sueloY = 0;
+  for(let i = 0; i < colisionadores.length; i++){
+    const c = colisionadores[i];
+    if(J.pos.x > c.min.x - CONFIG.RADIO_JUGADOR && J.pos.x < c.max.x + CONFIG.RADIO_JUGADOR &&
+       J.pos.z > c.min.z - CONFIG.RADIO_JUGADOR && J.pos.z < c.max.z + CONFIG.RADIO_JUGADOR){
+      if(c.max.y <= J.pos.y + 0.15 && c.max.y > sueloY){
+        sueloY = c.max.y;
+      }
+    }
+  }
+  if(J.pos.y <= sueloY + 0.05){
+    J.pos.y = sueloY;
+    J.vel.y = 0;
+    J.enSuelo = true;
+  } else {
+    J.enSuelo = false;
+  }
+
   resolverColision(J.pos, CONFIG.RADIO_JUGADOR, alturaObj + 0.1);
   const alturaObjetivo = J.agachado ? CONFIG.ALTURA_AGACHADO : CONFIG.ALTURA_PIE;
   J.alturaActual = lerp(J.alturaActual, alturaObjetivo, 1 - Math.pow(0.0002, dt));
@@ -3710,6 +3746,49 @@ async function solicitarRevancha(){
   }
 }
 
+/* ============================================================
+   TORRES DE FRANCOTIRADOR — Solo modo duelo
+   ============================================================ */
+function construirTorresDuelo(){
+  const A = CONFIG.ARENA;               // 60 en duelo
+  const d = A - 22;                     // distancia al centro
+  const posiciones = [
+    { x: -d, z: -d },
+    { x:  d, z: -d },
+    { x: -d, z:  d },
+    { x:  d, z:  d }
+  ];
+  for(let i = 0; i < posiciones.length; i++){
+    construirTorreEscalonada(posiciones[i].x, posiciones[i].z);
+  }
+}
+
+function construirTorreEscalonada(cx, cz){
+  const niveles = 10;
+  const alturaNivel = 0.6;
+  const sizeInicial = 12;
+  const decremento = 1;
+
+  // Estructura piramidal escalonada (se puede subir caminando)
+  for(let n = 0; n < niveles; n++){
+    const size = sizeInicial - n * decremento;
+    if(size <= 0.8) break;
+    const color = n === niveles - 1 ? 0x5a5a5a : 0x3a3a3a;
+    agregarCaja(cx, n * alturaNivel, cz, size, alturaNivel, size, color);
+  }
+
+  // Detalle visual: un pilar verde brillante en la cima
+  const alturaFinal = niveles * alturaNivel; // 6.0
+  const pilarMat = new THREE.MeshBasicMaterial({ color: 0x8dffab });
+  const pilar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.0, 8), pilarMat);
+  pilar.position.set(cx, alturaFinal + 0.5, cz);
+  mapaGroup.add(pilar);
+  const luz = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8),
+                             new THREE.MeshBasicMaterial({ color: 0x8dffab }));
+  luz.position.set(cx, alturaFinal + 1.1, cz);
+  mapaGroup.add(luz);
+}
+
 /* ============ EMPEZAR DUELO ============ */
 function empezarDuelo(){
   Estado.dueloEmpezado = true;
@@ -3720,13 +3799,15 @@ function empezarDuelo(){
     Net.rivalMesh = null;
   }
   limpiarMapa(); limpiarEfectos();
+  CONFIG.ARENA = DUELO_ARENA_SIZE;           // ← 60 en duelo
   const mapa = MAPAS[mapaSeleccionado] || MAPAS[0];
-    dificultadActual = DIFICULTAD.normal;
-  CONFIG.VIDA_MAX = 100;
-  CONFIG.REGEN_RETARDO = DUELO_REGEN_RETARDO;   // ← 3s
-  CONFIG.REGEN_VEL = DUELO_REGEN_VEL;           // ← 25 HP/s
+  dificultadActual = DIFICULTAD.normal;
+  CONFIG.VIDA_MAX = DUELO_VIDA_MAX;          // ← 500 HP
+  CONFIG.REGEN_RETARDO = DUELO_REGEN_RETARDO;
+  CONFIG.REGEN_VEL = DUELO_REGEN_VEL;
   aplicarEntornoMapa(mapa);
   mapa.construir();
+  construirTorresDuelo();                    // ← Torres de francotirador
   for(let i=0;i<enemigos.length;i++) enemigos[i].destruir();
   enemigos.length = 0; jefeActual = null;
   ocultarBarraJefe();
@@ -3885,8 +3966,8 @@ function sincronizarRegen(){
   const ahora = performance.now();
   if(ahora - (Net.ultimoDanoRecibidoTs || 0) < 800) return;
 
-  const vidaActual = Math.round(Jugador.vida);
-  if(Math.abs(vidaActual - (Net.ultimaVidaEnviada || 100)) < 3) return;  // umbral
+   const vidaActual = Math.round(Jugador.vida);
+  if(Math.abs(vidaActual - (Net.ultimaVidaEnviada || DUELO_VIDA_MAX)) < 5) return;
 
   Net.ultimaVidaEnviada = vidaActual;
   Net.miRef.update({
