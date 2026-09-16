@@ -457,6 +457,17 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
   <button id="btnSalirLobby" class="boton secundario">VOLVER AL MENÚ</button>
 </div>
 
+  <!-- ===================== RIVAL ABANDONÓ ===================== -->
+  <div id="rivalAbandono" class="pantalla oculto">
+    <div class="titulo" style="color:#ff6b6b;text-shadow:0 0 30px rgba(255,60,60,.9);">RIVAL ABANDONÓ</div>
+    <div class="subtitulo" style="color:#ffb347;">LA PARTIDA HA TERMINADO</div>
+    <div style="font-size:15px;letter-spacing:3px;color:#fff;margin:14px 0;line-height:1.8;">
+      <span id="nombreRivalAbandono" style="color:#ffb347;font-weight:bold;">EL RIVAL</span><br>
+      SE HA DESCONECTADO
+    </div>
+    <button id="btnSalirAbandono" class="boton morado">VOLVER AL MENÚ</button>
+  </div>
+
   <div id="quiz" class="pantalla oculto">
     <div class="titulo">DESAFÍO MATEMÁTICO</div>
     <div class="subtitulo">RESPONDE PARA CONTINUAR LA MISIÓN</div>
@@ -2459,6 +2470,30 @@ function desactivarPausaRival(){
   Audio3D.reanudar();
 }
 
+/* 🚪 El rival abandonó la partida: mostrar aviso y ofrecer salir */
+function rivalAbandonoPartida(nombreRival){
+  if(Estado.fase === 'gameover' || Estado.fase === 'rivalAbandono') return;
+  Estado.fase = 'rivalAbandono';
+
+  // Congelar todo
+  Input.ratonIzq = false; Input.ratonDer = false; Input.arrastre = false;
+  Movil.disparando = false; Movil.joyX = 0; Movil.joyY = 0;
+
+  // UI
+  document.getElementById('crosshair').classList.remove('activa');
+  document.getElementById('scope').classList.remove('activa');
+  document.getElementById('pausa').classList.add('oculto');
+  document.getElementById('hud').classList.add('oculto');
+  document.getElementById('controlesMovil').classList.add('oculto');
+  document.getElementById('nombreRivalAbandono').textContent =
+    (nombreRival || Net.rival.nombre || 'EL RIVAL').toUpperCase();
+  document.getElementById('rivalAbandono').classList.remove('oculto');
+
+  if(document.pointerLockElement) document.exitPointerLock();
+  Audio3D.tono(220, 0.4, 0.25, 'sawtooth', 90);
+  setTimeout(() => Audio3D.tono(165, 0.5, 0.25, 'sawtooth', 55), 200);
+}
+
 function terminarPartida(){
   Estado.fase = 'gameover';
   document.getElementById('crosshair').classList.remove('activa');
@@ -3400,6 +3435,7 @@ const Net = {
   vidas: 5,
   ultimoDanoRecibidoTs: 0,   // ← NUEVO: cuándo me dieron el último golpe
   ultimaVidaEnviada: 100,    // ← NUEVO: última vida que sincronicé por regen
+  rivalConectado: false,   // ← NUEVO: trackea si el rival estaba conectado
   revanchaEnCurso: false
 };
 
@@ -3706,7 +3742,7 @@ async function conectarASala(codigo){
     }
   });
 
-  // Escuchar jugadores
+   // Escuchar jugadores
   const playersRef = Net.db.ref('rooms/' + codigo + '/players');
   playersRef.on('value', (snap) => {
     const datos = snap.val() || {};
@@ -3719,11 +3755,12 @@ async function conectarASala(codigo){
       const r = rivales[0].data;
       Net.rival.x = r.x || 0; Net.rival.y = r.y || 0; Net.rival.z = r.z || 0;
       Net.rival.yaw = r.yaw || 0; Net.rival.pitch = r.pitch || 0;
-            Net.rival.vida = typeof r.vida === 'number' ? r.vida : 100;
+      Net.rival.vida = typeof r.vida === 'number' ? r.vida : 100;
       Net.rival.vivo = r.vivo !== false;
       Net.rival.vidas = typeof r.lives === 'number' ? r.lives : DUELO_VIDAS;
       Net.rival.nombre = r.nombre || 'RIVAL';
       Net.rivalRef = Net.db.ref('rooms/' + codigo + '/players/' + rivales[0].id);
+      Net.rivalConectado = true;   // ← NUEVO
       actualizarJugadoresLobby([Net.jugadorNombre, Net.rival.nombre]);
       actualizarHUDVidas();
       if(Net.host && rivales.length === 1){
@@ -3731,8 +3768,15 @@ async function conectarASala(codigo){
       }
     } else {
       Net.rivalRef = null;
+      const estabaConectado = Net.rivalConectado;
+      Net.rivalConectado = false;   // ← NUEVO
       actualizarJugadoresLobby([Net.jugadorNombre]);
       document.getElementById('btnComenzarDuelo').classList.add('oculto');
+
+      // 🚪 Si estábamos en duelo y el rival desaparece → aviso
+      if(estabaConectado && (Estado.fase === 'duelo' || Estado.fase === 'pausaRival' || Estado.fase === 'pausa')){
+        rivalAbandonoPartida(Net.rival.nombre);
+      }
     }
   });
 
@@ -3777,6 +3821,17 @@ async function conectarASala(codigo){
         // Ya estaba activado
       } else {
         console.warn('⏸️ El rival pausó pero mi fase no es duelo:', Estado.fase);
+      }
+    }
+  });
+
+    // 🚪 Escuchar si el rival abandonó voluntariamente la partida
+  Net.db.ref('rooms/' + codigo + '/abandonedBy').on('value', (snap) => {
+    const byId = snap.val();
+    if(byId && byId !== Net.jugadorId){
+      // El rival marcó abandono voluntario
+      if(Estado.fase === 'duelo' || Estado.fase === 'pausaRival'){
+        rivalAbandonoPartida(Net.rival.nombre);
       }
     }
   });
@@ -4180,35 +4235,57 @@ function terminarDuelo(ganadorId){
 }
 
 function salirDeSala(){
+  // 🔒 Capturar valores ANTES de resetear (los callbacks async los necesitan)
+  const salaIdLocal = Net.salaId;
+  const jugadorIdLocal = Net.jugadorId;
+  const miRefLocal = Net.miRef;
+
   try{
-    // ⏸️ Si yo era el que pausó, liberar la pausa
-    if(Net.salaId && Net.db && Net.jugadorId){
-      Net.db.ref('rooms/' + Net.salaId + '/pausedBy').once('value').then((snap) => {
-        if(snap.val() === Net.jugadorId){
-          Net.db.ref('rooms/' + Net.salaId).update({ pausedBy: null });
+    if(salaIdLocal && Net.db && jugadorIdLocal){
+      // ⏸️ Liberar mi pausa si yo la puse
+      Net.db.ref('rooms/' + salaIdLocal + '/pausedBy').once('value').then((snap) => {
+        if(snap.val() === jugadorIdLocal){
+          Net.db.ref('rooms/' + salaIdLocal).update({ pausedBy: null }).catch(()=>{});
         }
       }).catch(()=>{});
     }
-    if(Net.miRef) Net.miRef.off();
-    if(Net.salaId && Net.db) Net.db.ref('rooms/' + Net.salaId).off();
+
+    // 🔕 Quitar listeners de CADA path específico (Firebase .off() NO es recursivo)
+    if(salaIdLocal && Net.db){
+      const paths = ['', '/players', '/pausedBy', '/empezado', '/ganador', '/mapa', '/abandonedBy'];
+      for(let i = 0; i < paths.length; i++){
+        try { Net.db.ref('rooms/' + salaIdLocal + paths[i]).off(); } catch(e){}
+      }
+    }
+    if(miRefLocal) miRefLocal.off();
   }catch(e){}
-  if(Net.miRef) Net.miRef.remove();
+
+  // 🗑️ Quitar mi nodo de jugador
+  try{
+    if(miRefLocal) miRefLocal.remove().catch(()=>{});
+  }catch(e){}
+
+  // 🧹 Limpiar el mesh del rival
   if(Net.rivalMesh){
     escena.remove(Net.rivalMesh);
     Net.rivalMesh.traverse(function(o){ if(o.geometry) o.geometry.dispose(); });
     Net.rivalMesh = null;
   }
+
+  // 🔄 Resetear estado local
   Net.salaId = null;
   Net.jugadorId = null;
   Net.miRef = null;
   Net.rivalRef = null;
   Net.host = false;
-    Net.listenersActivos = false;
+  Net.listenersActivos = false;
   Net.revanchaEnCurso = false;
   Net.vidas = DUELO_VIDAS;
   Net.rival.vidas = DUELO_VIDAS;
   Net.pausedBy = null;
+  Net.rivalConectado = false;
   Estado.dueloEmpezado = false;
+
   const vidasEl = document.getElementById('vidasDuelo');
   if(vidasEl) vidasEl.classList.add('oculto');
 }
@@ -4248,17 +4325,35 @@ function init(){
   document.getElementById('btnReanudar').addEventListener('click', reanudar);
   document.getElementById('btnReiniciarPausa').addEventListener('click', function(){
   if(fasePreviaPausa === 'duelo' || Estado.dueloEmpezado){
-    salirDeSala();
-    document.getElementById('pausa').classList.add('oculto');
-    mostrarMenuPrincipal();
+    // Avisar al rival antes de salir
+    if(Net.salaId && Net.db && Net.jugadorId){
+      Net.db.ref('rooms/' + Net.salaId).update({ abandonedBy: Net.jugadorId }).catch(()=>{});
+    }
+    setTimeout(() => {
+      salirDeSala();
+      document.getElementById('pausa').classList.add('oculto');
+      mostrarMenuPrincipal();
+    }, 250);
   } else {
     iniciarPartida();
   }
 });
 document.getElementById('btnVolverMenuPausa').addEventListener('click', function(){
-  if(fasePreviaPausa === 'duelo' || Estado.dueloEmpezado) salirDeSala();
-  document.getElementById('pausa').classList.add('oculto');
-  mostrarMenuPrincipal();
+  if(fasePreviaPausa === 'duelo' || Estado.dueloEmpezado){
+    // Avisar al rival antes de salir
+    if(Net.salaId && Net.db && Net.jugadorId){
+      Net.db.ref('rooms/' + Net.salaId).update({ abandonedBy: Net.jugadorId }).catch(()=>{});
+    }
+    setTimeout(() => {
+      salirDeSala();
+      document.getElementById('pausa').classList.add('oculto');
+      mostrarMenuPrincipal();
+    }, 250);
+  } else {
+    salirDeSala();
+    document.getElementById('pausa').classList.add('oculto');
+    mostrarMenuPrincipal();
+  }
 });
   document.getElementById('btnReintentar').addEventListener('click', iniciarPartida);
   document.getElementById('btnCambiarMapa').addEventListener('click', mostrarSeleccionMapa);
@@ -4366,6 +4461,12 @@ document.getElementById('btnVolverMenuPausa').addEventListener('click', function
   document.getElementById('btnSalirLobby').addEventListener('click', function(){
     salirDeSala();
     document.getElementById('lobby1v1').classList.add('oculto');
+    mostrarMenuPrincipal();
+  });
+
+    document.getElementById('btnSalirAbandono').addEventListener('click', function(){
+    salirDeSala();
+    document.getElementById('rivalAbandono').classList.add('oculto');
     mostrarMenuPrincipal();
   });
 
