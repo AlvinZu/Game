@@ -433,12 +433,23 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
   <div id="estadoLobby" style="font-size:13px;letter-spacing:3px;color:var(--ambar);
        min-height:22px;text-align:center;padding:0 10px;"></div>
 
-  <div id="infoSala" class="panelInstrucciones oculto"
-       style="text-align:center;max-width:420px;">
+   <div id="infoSala" class="panelInstrucciones oculto"
+       style="text-align:center;max-width:480px;">
     <div style="font-size:11px;letter-spacing:4px;color:var(--verde2);">CÓDIGO DE TU SALA</div>
     <div id="codigoMostrado" style="font-size:42px;font-weight:bold;letter-spacing:12px;
          color:#fff;text-shadow:0 0 20px var(--oro);margin:8px 0;"></div>
     <div style="font-size:11px;opacity:.75;">Comparte este código con tu rival</div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px;">
+      <button id="btnCopiarCodigo" class="boton secundario" style="padding:8px 16px;font-size:12px;letter-spacing:2px;">📋 COPIAR</button>
+      <button id="btnCompartirCodigo" class="boton oro" style="padding:8px 16px;font-size:12px;letter-spacing:2px;">📱 COMPARTIR</button>
+      <button id="btnCopiarLink" class="boton morado" style="padding:8px 16px;font-size:12px;letter-spacing:2px;">🔗 INVITAR POR LINK</button>
+    </div>
+
+    <div id="feedbackCopiado" class="oculto" style="margin-top:10px;font-size:12px;letter-spacing:3px;color:var(--verde);font-weight:bold;transition:opacity .3s;">
+      ✓ COPIADO AL PORTAPAPELES
+    </div>
+
     <div id="jugadoresLobby" style="margin-top:14px;font-size:13px;letter-spacing:2px;"></div>
   </div>
 
@@ -3427,6 +3438,107 @@ function generarCodigoSala(){
 }
 function generarIdJugador(){ return 'p_' + Math.random().toString(36).substring(2, 10); }
 
+/* ============================================================
+   COMPARTIR CÓDIGO DE SALA
+   ============================================================ */
+function mostrarFeedbackCopiado(mensaje){
+  const el = document.getElementById('feedbackCopiado');
+  if(!el) return;
+  el.textContent = '✓ ' + (mensaje || 'COPIADO AL PORTAPAPELES');
+  el.classList.remove('oculto');
+  el.style.opacity = '1';
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => el.classList.add('oculto'), 300);
+  }, 2000);
+}
+
+async function copiarAlPortapapeles(texto){
+  // Método moderno
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    try {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    } catch(e){ /* fallback abajo */ }
+  }
+  // Fallback universal (funciona en iPhone/Safari antiguo)
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch(e){
+    return false;
+  }
+}
+
+function obtenerLinkInvitacion(){
+  // Construye un link con el código embebido en la URL
+  const base = window.location.href.split('?')[0].split('#')[0];
+  return base + '?join=' + encodeURIComponent(Net.salaId || '');
+}
+
+async function compartirCodigo(){
+  if(!Net.salaId) return;
+  const url = obtenerLinkInvitacion();
+  const texto = '¡Únete a mi partida de OPERACIÓN ARENA!\n\nCódigo: ' + Net.salaId + '\nO entra directo con este link:\n' + url;
+
+  // Web Share API (iPhone/Android/móvil) — abre el menú nativo
+  if(navigator.share){
+    try {
+      await navigator.share({
+        title: 'Operación Arena — Invitación 1v1',
+        text: 'Únete a mi partida con el código ' + Net.salaId,
+        url: url
+      });
+      return;
+    } catch(e){
+      // Usuario canceló o no soportado → fallback a copiar
+    }
+  }
+
+  // Fallback: si no hay share nativo, copiamos el texto completo
+  const ok = await copiarAlPortapapeles(texto);
+  if(ok) mostrarFeedbackCopiado('INVITACIÓN COPIADA');
+  else mostrarFeedbackCopiado('NO SE PUDO COMPARTIR');
+}
+
+async function copiarCodigoSolo(){
+  if(!Net.salaId) return;
+  const ok = await copiarAlPortapapeles(Net.salaId);
+  if(ok) mostrarFeedbackCopiado('CÓDIGO COPIADO');
+  else mostrarFeedbackCopiado('NO SE PUDO COPIAR');
+}
+
+async function copiarLinkInvitacion(){
+  if(!Net.salaId) return;
+  const url = obtenerLinkInvitacion();
+  const ok = await copiarAlPortapapeles(url);
+  if(ok) mostrarFeedbackCopiado('LINK COPIADO');
+  else mostrarFeedbackCopiado('NO SE PUDO COPIAR');
+}
+
+/* Detecta ?join=XXXXXX en la URL y auto-rellena el código */
+function detectarCodigoEnURL(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const codigo = (params.get('join') || '').toUpperCase().trim();
+    if(codigo.length === 6){
+      const input = document.getElementById('codigoSala');
+      if(input) input.value = codigo;
+      return codigo;
+    }
+  } catch(e){}
+  return null;
+}
+
 function mostrarEstadoLobby(txt){
   const el = document.getElementById('estadoLobby');
   if(el) el.textContent = txt || '';
@@ -4220,10 +4332,26 @@ document.getElementById('btnVolverMenuPausa').addEventListener('click', function
     inicializarFirebase().catch(e => console.error(e));
   });
 
+    /* 🔗 Auto-abrir lobby si el link trae ?join=CODIGO */
+  (function autoJoinFromURL(){
+    const codigo = detectarCodigoEnURL();
+    if(!codigo) return;
+    // Abrir lobby automáticamente tras cargar
+    setTimeout(() => {
+      const lobbyBtn = document.getElementById('btnAbrir1v1');
+      if(lobbyBtn) lobbyBtn.click();
+      mostrarEstadoLobby('CÓDIGO DETECTADO · ESCRIBE TU NOMBRE Y PULSA UNIRSE');
+    }, 400);
+  })();
+
   document.getElementById('btnCrearSala').addEventListener('click', function(){
     const nombre = document.getElementById('nombreJugador').value.trim() || 'JUGADOR';
     crearSala(nombre).catch(e => { console.error(e); mostrarEstadoLobby('ERROR DE CONEXIÓN'); });
   });
+
+  document.getElementById('btnCopiarCodigo').addEventListener('click', copiarCodigoSolo);
+  document.getElementById('btnCompartirCodigo').addEventListener('click', compartirCodigo);
+  document.getElementById('btnCopiarLink').addEventListener('click', copiarLinkInvitacion);
 
   document.getElementById('btnUnirSala').addEventListener('click', function(){
     const nombre = document.getElementById('nombreJugador').value.trim() || 'JUGADOR';
