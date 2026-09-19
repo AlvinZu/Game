@@ -4228,11 +4228,18 @@ function crearRivalMesh(){
     instancia = Modelos.crearInstancia(MODELO_PERSONAJE);
   }
 
-  if(instancia){
+    if(instancia){
     // Ajustes de escala y posición del modelo
-    instancia.mesh.scale.setScalar(1.0);   // Mixamo suele venir en metros, ajusta si es necesario
-    instancia.mesh.position.y = 0;
-    g.add(instancia.mesh);
+    instancia.mesh.scale.setScalar(1.0);
+    instancia.mesh.position.set(0, 0, 0);
+
+    // 🔄 Compensación de rotación: Mixamo suele traer -90° X que se duplica al convertir
+    const wrapper = new THREE.Group();
+    wrapper.rotation.x = -Math.PI / 2;   // ← aquí compensamos
+    wrapper.add(instancia.mesh);
+
+    g.add(wrapper);
+    g.userData.modeloWrapper = wrapper;
     g.userData.modeloInst = instancia;
 
     // 🎯 Hitboxes invisibles para el sistema de daño
