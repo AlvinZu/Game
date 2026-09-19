@@ -485,6 +485,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script>
 (function(){
 'use strict';
@@ -506,6 +508,153 @@ const CONFIG = {
   SENS_PC:0.0022, SENS_MOVIL:0.0045, FOV_BASE:76, ARENA:30,
   MAX_PARTICULAS:460, MAX_TRAZADORAS:44,
   OLEADA_BASE:4, OLEADA_INCREMENTO:2, INTERMEDIO:2.0
+};
+
+/* ============================================================
+   SISTEMA DE MODELOS 3D — Mixamo + GLTFLoader
+   ============================================================ */
+const MODELO_PERSONAJE = 'police';   // Cambiar a 'swat' cuando lo conviertas
+
+const Modelos = {
+  loader: null,
+  cache: {},          // { police: gltf }
+  animaciones: {},    // { idle: AnimationClip, walk: ..., etc }
+  listo: false,
+  cargando: false,
+  error: false,
+
+  async cargar(){
+    if(this.listo || this.cargando) return this.listo;
+    if(typeof THREE.GLTFLoader === 'undefined'){
+      console.warn('GLTFLoader no cargado, usando fallback a cajas');
+      this.error = true;
+      return false;
+    }
+    this.cargando = true;
+    this.loader = new THREE.GLTFLoader();
+
+    const baseAnim = 'assets/models/animations/';
+    const promesas = [];
+
+    // Cargar el personaje
+    const urlPersonaje = encodeURI('assets/models/' + MODELO_PERSONAJE + '.glb');
+    promesas.push(new Promise((resolve) => {
+      this.loader.load(urlPersonaje,
+        (gltf) => {
+          gltf.scene.traverse(obj => {
+            if(obj.isMesh){
+              obj.castShadow = true;
+              obj.receiveShadow = true;
+              obj.frustumCulled = false;
+              // Mejora de materiales: PBR si es posible
+              if(obj.material){
+                obj.material = obj.material.clone();
+                obj.material.side = THREE.FrontSide;
+              }
+            }
+          });
+          this.cache[MODELO_PERSONAJE] = gltf;
+          console.log('✅ Personaje cargado:', MODELO_PERSONAJE);
+          resolve(true);
+        },
+        undefined,
+        (err) => {
+          console.warn('❌ Error cargando personaje:', err);
+          resolve(false);
+        }
+      );
+    }));
+
+    // Cargar las 5 animaciones
+    const nombresAnims = [
+      { key: 'idle',  file: 'idle.glb' },
+      { key: 'walk',  file: 'walk forward.glb' },
+      { key: 'run',   file: 'run forward.glb' },
+      { key: 'aim',   file: 'idle aiming.glb' },
+      { key: 'death', file: 'death from the front.glb' }
+    ];
+
+    nombresAnims.forEach(({key, file}) => {
+      const url = encodeURI(baseAnim + file);
+      promesas.push(new Promise((resolve) => {
+        this.loader.load(url,
+          (gltf) => {
+            if(gltf.animations && gltf.animations.length > 0){
+              this.animaciones[key] = gltf.animations[0];
+            }
+            resolve(true);
+          },
+          undefined,
+          (err) => {
+            console.warn('❌ Error animación ' + key + ':', err);
+            resolve(false);
+          }
+        );
+      }));
+    });
+
+    await Promise.all(promesas);
+    this.listo = Object.keys(this.cache).length > 0;
+    this.cargando = false;
+    console.log('📦 Modelos listos. Personajes:', Object.keys(this.cache).length,
+                '· Animaciones:', Object.keys(this.animaciones).length);
+    return this.listo;
+  },
+
+  /* Crea una instancia del modelo con su AnimationMixer */
+  crearInstancia(nombreModelo){
+    const original = this.cache[nombreModelo];
+    if(!original) return null;
+
+    // Clonar respetando los huesos (SkinnedMesh)
+    let clon;
+    if(THREE.SkeletonUtils && THREE.SkeletonUtils.clone){
+      clon = THREE.SkeletonUtils.clone(original.scene);
+    } else {
+      clon = original.scene.clone(true);
+    }
+
+    // Ajustar sombras
+    clon.traverse(obj => {
+      if(obj.isMesh){
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+        obj.frustumCulled = false;
+      }
+    });
+
+    // Mixer de animaciones
+    const mixer = new THREE.AnimationMixer(clon);
+    const acciones = {};
+    for(const key in this.animaciones){
+      const clip = this.animaciones[key];
+      if(clip){
+        acciones[key] = mixer.clipAction(clip);
+        acciones[key].setLoop(key === 'death' ? THREE.LoopOnce : THREE.LoopRepeat);
+        if(key === 'death') acciones[key].clampWhenFinished = true;
+      }
+    }
+
+    return {
+      mesh: clon,
+      mixer: mixer,
+      acciones: acciones,
+      animActual: null,
+      escalaOriginal: 1.0
+    };
+  },
+
+  /* Reproduce una animación con transición suave */
+  reproducir(inst, nombre, fade){
+    if(!inst || !inst.acciones) return;
+    const nueva = inst.acciones[nombre];
+    if(!nueva || inst.animActual === nombre) return;
+    fade = fade || 0.2;
+    const anterior = inst.animActual ? inst.acciones[inst.animActual] : null;
+    nueva.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(fade).play();
+    if(anterior && anterior !== nueva) anterior.fadeOut(fade);
+    inst.animActual = nombre;
+  }
 };
 
 /* ============================================================
@@ -4019,40 +4168,31 @@ function empezarDuelo(){
 
 function crearRivalMesh(){
   if(Net.rivalMesh) return;
-  const g = new THREE.Group();
-  const matCuerpo = new THREE.MeshLambertMaterial({ color: 0xc03030 });
-  const matCabeza = new THREE.MeshLambertMaterial({ color: 0xe8c8a0 });
-  const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
 
-    const pseudo = {
+  const g = new THREE.Group();
+
+  // Pseudo-enemigo: mismo sistema de daño que ya tenías
+  const pseudo = {
     get muerto(){ return !Net.rival.vivo; },
     get vida(){ return Net.rival.vida; },
     recibirDano: function(dmg, esCabeza, desde){
       if(!Net.rivalRef) return;
-      // ⏸️ Si YO estoy en pausa o el rival pausó, no procesar daño
       if(Net.pausedBy) return;
       if(Estado.fase === 'pausa' || Estado.fase === 'pausaRival') return;
 
       const nuevaVida = Math.max(0, (Net.rival.vida || 100) - dmg);
       Net.rival.vida = nuevaVida;
 
-            // 💥 Daño normal: todavía le queda HP
       if(nuevaVida > 0){
-        Net.rivalRef.update({
-          vida: nuevaVida,
-          vivo: true,
-          vidaWriter: Net.jugadorId   // 🏷️ YO soy el que escribió este daño
-        });
+        Net.rivalRef.update({ vida: nuevaVida, vivo: true, vidaWriter: Net.jugadorId });
         return;
       }
 
-      // ☠️ ¡KILL! Le restamos una vida
       const vidasActuales = Net.rival.vidas || DUELO_VIDAS;
       const nuevasVidas = Math.max(0, vidasActuales - 1);
       Net.rival.vidas = nuevasVidas;
 
       if(nuevasVidas <= 0){
-        // 🏆 ¡Victoria final! El rival se quedó sin vidas
         Net.rivalRef.update({ vida: 0, vivo: false, lives: 0 });
         Net.db.ref('rooms/' + Net.salaId).update({
           ganador: Net.jugadorId,
@@ -4061,10 +4201,9 @@ function crearRivalMesh(){
         mostrarMensaje('¡VICTORIA FINAL!', 'RIVAL SIN VIDAS', 2.5);
         Audio3D.jefeDerrotado();
       } else {
-        // 🔄 Respawn del rival con vida y posición reseteadas
         const posRival = Net.host ? { x:0, z:-10, yaw:Math.PI } : { x:0, z:10, yaw:0 };
         Net.rivalRef.update({
-          vida: 100,
+          vida: DUELO_VIDA_MAX,
           vivo: true,
           lives: nuevasVidas,
           vidaWriter: Net.jugadorId,
@@ -4072,33 +4211,77 @@ function crearRivalMesh(){
         });
         mostrarKillBadge('¡ELIMINADO! ' + nuevasVidas + ' ❤', '#ff4d6b');
         Audio3D.baja();
+        // Resetear la animación de muerte
+        if(Net.rivalMesh && Net.rivalMesh.userData.modeloInst){
+          const inst = Net.rivalMesh.userData.modeloInst;
+          inst.animActual = null;
+          if(inst.acciones.death) inst.acciones.death.stop();
+        }
       }
     }
   };
+  g.userData.pseudo = pseudo;
 
-  function pieza(w,h,d,mat,x,y,z,parte){
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
-    m.position.set(x,y,z);
-    m.userData = { enemigo: pseudo, parte: parte || 'cuerpo' };
-    m.castShadow = !ES_MOVIL;
-    g.add(m); return m;
+  // 🎨 Intentar usar el modelo realista
+  let instancia = null;
+  if(Modelos.listo){
+    instancia = Modelos.crearInstancia(MODELO_PERSONAJE);
   }
 
-  pieza(0.62, 0.82, 0.36, matCuerpo, 0, 1.14, 0, 'cuerpo');
-  pieza(0.66, 0.42, 0.40, matOscuro, 0, 1.22, 0, 'cuerpo');
-  pieza(0.30, 0.30, 0.30, matCabeza, 0, 1.70, 0, 'cabeza');
-  pieza(0.34, 0.14, 0.34, matOscuro, 0, 1.86, 0, 'cabeza');
-  pieza(0.20, 0.72, 0.22, matOscuro, -0.16, 0.36, 0, 'cuerpo');
-  pieza(0.20, 0.72, 0.22, matOscuro, 0.16, 0.36, 0, 'cuerpo');
-  pieza(0.15, 0.60, 0.16, matCuerpo, -0.40, 1.18, 0.02, 'cuerpo');
-  pieza(0.15, 0.60, 0.16, matCuerpo, 0.40, 1.18, 0.02, 'cuerpo');
-  pieza(0.09, 0.11, 0.72, matOscuro, 0.30, 1.20, 0.42, 'cuerpo');
+  if(instancia){
+    // Ajustes de escala y posición del modelo
+    instancia.mesh.scale.setScalar(1.0);   // Mixamo suele venir en metros, ajusta si es necesario
+    instancia.mesh.position.y = 0;
+    g.add(instancia.mesh);
+    g.userData.modeloInst = instancia;
 
-  const visorMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.06, 0.03), visorMat);
-  visor.position.set(0, 1.72, 0.16);
-  visor.userData = { enemigo: pseudo, parte: 'cabeza' };
-  g.add(visor);
+    // 🎯 Hitboxes invisibles para el sistema de daño
+    const invisible = new THREE.MeshBasicMaterial({ visible: false });
+
+    const hitTorso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.3, 0.5), invisible);
+    hitTorso.position.y = 1.15;
+    hitTorso.userData = { enemigo: pseudo, parte: 'cuerpo' };
+    g.add(hitTorso);
+
+    const hitCabeza = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.32), invisible);
+    hitCabeza.position.y = 1.78;
+    hitCabeza.userData = { enemigo: pseudo, parte: 'cabeza' };
+    g.add(hitCabeza);
+
+    const hitPiernas = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.5), invisible);
+    hitPiernas.position.y = 0.45;
+    hitPiernas.userData = { enemigo: pseudo, parte: 'cuerpo' };
+    g.add(hitPiernas);
+  } else {
+    // 🔙 Fallback al modelo de cajas original
+    const matCuerpo = new THREE.MeshLambertMaterial({ color: 0xc03030 });
+    const matCabeza = new THREE.MeshLambertMaterial({ color: 0xe8c8a0 });
+    const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
+
+    function pieza(w,h,d,mat,x,y,z,parte){
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+      m.position.set(x,y,z);
+      m.userData = { enemigo: pseudo, parte: parte || 'cuerpo' };
+      m.castShadow = !ES_MOVIL;
+      g.add(m); return m;
+    }
+
+    pieza(0.62, 0.82, 0.36, matCuerpo, 0, 1.14, 0, 'cuerpo');
+    pieza(0.66, 0.42, 0.40, matOscuro, 0, 1.22, 0, 'cuerpo');
+    pieza(0.30, 0.30, 0.30, matCabeza, 0, 1.70, 0, 'cabeza');
+    pieza(0.34, 0.14, 0.34, matOscuro, 0, 1.86, 0, 'cabeza');
+    pieza(0.20, 0.72, 0.22, matOscuro, -0.16, 0.36, 0, 'cuerpo');
+    pieza(0.20, 0.72, 0.22, matOscuro, 0.16, 0.36, 0, 'cuerpo');
+    pieza(0.15, 0.60, 0.16, matCuerpo, -0.40, 1.18, 0.02, 'cuerpo');
+    pieza(0.15, 0.60, 0.16, matCuerpo, 0.40, 1.18, 0.02, 'cuerpo');
+    pieza(0.09, 0.11, 0.72, matOscuro, 0.30, 1.20, 0.42, 'cuerpo');
+
+    const visorMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.06, 0.03), visorMat);
+    visor.position.set(0, 1.72, 0.16);
+    visor.userData = { enemigo: pseudo, parte: 'cabeza' };
+    g.add(visor);
+  }
 
   escena.add(g);
   Net.rivalMesh = g;
@@ -4146,12 +4329,39 @@ function sincronizarRegen(){
 function actualizarRival(dt){
   if(!Net.rivalMesh) return;
   const r = Net.rival;
+
+  // Suavizado de posición
   const suav = 1 - Math.pow(0.001, dt);
   Net.rivalMesh.position.x = lerp(Net.rivalMesh.position.x, r.x, suav);
   Net.rivalMesh.position.y = lerp(Net.rivalMesh.position.y, r.y, suav);
   Net.rivalMesh.position.z = lerp(Net.rivalMesh.position.z, r.z, suav);
   Net.rivalMesh.rotation.y = r.yaw + Math.PI;
   Net.rivalMesh.visible = r.vivo !== false;
+
+  // 🎬 Animaciones del modelo (si existe)
+  const inst = Net.rivalMesh.userData.modeloInst;
+  if(!inst) return;
+
+  inst.mixer.update(dt);
+
+  // Calcular velocidad del rival desde las posiciones
+  const rPrev = Net.rival._prev || { x: r.x, z: r.z };
+  const dx = r.x - rPrev.x;
+  const dz = r.z - rPrev.z;
+  const distancia = Math.hypot(dx, dz);
+  const velAprox = distancia / Math.max(dt, 0.001);
+  Net.rival._prev = { x: r.x, z: r.z };
+
+  // Elegir animación según estado
+  if(!r.vivo){
+    Modelos.reproducir(inst, 'death', 0.15);
+  } else if(velAprox > 3.5){
+    Modelos.reproducir(inst, 'run', 0.2);
+  } else if(velAprox > 0.4){
+    Modelos.reproducir(inst, 'walk', 0.25);
+  } else {
+    Modelos.reproducir(inst, 'idle', 0.3);
+  }
 }
 
 function enviarMiEstado(){
@@ -4298,6 +4508,9 @@ function init(){
   initEscena();
   initEfectos();
   initViewmodels();
+
+  // 📦 Cargar modelos 3D en segundo plano (no bloquea el arranque)
+  Modelos.cargar().catch(e => console.warn('Error cargando modelos:', e));
   construirInstrucciones();
   construirListaMapas();
   aplicarReticulaSeleccionada();
