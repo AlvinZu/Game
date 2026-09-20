@@ -623,12 +623,23 @@ const Modelos = {
       }
     });
 
-    // Mixer de animaciones
+       // Mixer de animaciones
     const mixer = new THREE.AnimationMixer(clon);
     const acciones = {};
     for(const key in this.animaciones){
-      const clip = this.animaciones[key];
+      let clip = this.animaciones[key];
       if(clip){
+        // 🚫 Quitar "root motion" de walk y run (el personaje se traslada por red)
+        if(key === 'walk' || key === 'run'){
+          const tracksFiltradas = clip.tracks.filter(track => {
+            // Mantener solo las pistas que NO sean la posición del hueso raíz
+            const esHips = track.name.indexOf('Hips') >= 0 || track.name.indexOf('hips') >= 0;
+            const esPosicion = track.name.indexOf('.position') >= 0;
+            return !(esHips && esPosicion);
+          });
+          clip = new THREE.AnimationClip(clip.name, clip.duration, tracksFiltradas);
+        }
+
         acciones[key] = mixer.clipAction(clip);
         acciones[key].setLoop(key === 'death' ? THREE.LoopOnce : THREE.LoopRepeat);
         if(key === 'death') acciones[key].clampWhenFinished = true;
@@ -4166,6 +4177,39 @@ function empezarDuelo(){
   mostrarMensaje('¡DUELO 1 VS 1!', 'PRIMERO EN DERRIBAR AL OTRO', 3);
 }
 
+/* 🔫 Rifle procedural — se pega a la mano del rival */
+function crearRifleProcedural(){
+  const rifle = new THREE.Group();
+  rifle.userData.esRifleProcedural = true;   // ← añade esta línea
+
+  const matOscuro = new THREE.MeshLambertMaterial({ color: 0x1e2126 });
+  const matMedio  = new THREE.MeshLambertMaterial({ color: 0x3a4046 });
+  const matCuero  = new THREE.MeshLambertMaterial({ color: 0x5a4130 });
+
+  function pieza(w, h, d, mat, x, y, z){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    m.castShadow = !ES_MOVIL;
+    rifle.add(m);
+    return m;
+  }
+
+  // Cuerpo principal del rifle
+  pieza(0.05, 0.07, 0.55, matOscuro, 0, 0, -0.10);
+  // Cañón
+  pieza(0.03, 0.03, 0.45, matMedio, 0, 0.01, -0.55);
+  // Culata
+  pieza(0.04, 0.09, 0.14, matCuero, 0, -0.03, 0.16);
+  // Cargador
+  pieza(0.04, 0.10, 0.06, matOscuro, 0, -0.08, -0.05);
+  // Mira superior
+  pieza(0.02, 0.03, 0.10, matOscuro, 0, 0.06, -0.30);
+  // Empuñadura
+  pieza(0.03, 0.08, 0.04, matOscuro, 0, -0.07, 0.05);
+
+  return rifle;
+}
+  
 function crearRivalMesh(){
   if(Net.rivalMesh) return;
 
@@ -4228,19 +4272,31 @@ function crearRivalMesh(){
     instancia = Modelos.crearInstancia(MODELO_PERSONAJE);
   }
 
-    if(instancia){
+      if(instancia){
     // Ajustes de escala y posición del modelo
     instancia.mesh.scale.setScalar(1.0);
     instancia.mesh.position.set(0, 0, 0);
 
-    // 🔄 Compensación de rotación: Mixamo suele traer -90° X que se duplica al convertir
+    // 🔄 Compensación de rotación de Mixamo
     const wrapper = new THREE.Group();
-    wrapper.rotation.x = -Math.PI / 2;   // ← aquí compensamos
+    wrapper.rotation.x = -Math.PI / 2;
     wrapper.add(instancia.mesh);
 
     g.add(wrapper);
     g.userData.modeloWrapper = wrapper;
     g.userData.modeloInst = instancia;
+
+    // 🔫 Añadir rifle procedural pegado a la mano derecha
+    instancia.mesh.traverse(obj => {
+      if(obj.isBone && (obj.name.indexOf('RightHand') >= 0 || obj.name.indexOf('rightHand') >= 0)){
+        const rifle = crearRifleProcedural();
+        // Escala y rotación del rifle para que encaje en la mano
+        rifle.scale.setScalar(0.85);
+        rifle.rotation.set(0, Math.PI / 2, 0);
+        rifle.position.set(0.05, 0.02, 0.05);
+        obj.add(rifle);
+      }
+    });
 
     // 🎯 Hitboxes invisibles para el sistema de daño
     const invisible = new THREE.MeshBasicMaterial({ visible: false });
@@ -4359,15 +4415,30 @@ function actualizarRival(dt){
   const velAprox = distancia / Math.max(dt, 0.001);
   Net.rival._prev = { x: r.x, z: r.z };
 
-  // Elegir animación según estado
+    // Elegir animación según estado
+  let animElegida = 'idle';
   if(!r.vivo){
-    Modelos.reproducir(inst, 'death', 0.15);
+    animElegida = 'death';
   } else if(velAprox > 3.5){
-    Modelos.reproducir(inst, 'run', 0.2);
+    animElegida = 'run';
   } else if(velAprox > 0.4){
-    Modelos.reproducir(inst, 'walk', 0.25);
+    animElegida = 'walk';
   } else {
-    Modelos.reproducir(inst, 'idle', 0.3);
+    animElegida = 'idle';
+  }
+  Modelos.reproducir(inst, animElegida, animElegida === 'death' ? 0.15 : 0.25);
+
+  // 🔫 Mostrar rifle solo cuando esté quieto y vivo
+  if(Net.rivalMesh){
+    Net.rivalMesh.traverse(obj => {
+      if(obj.isBone && (obj.name.indexOf('RightHand') >= 0 || obj.name.indexOf('rightHand') >= 0)){
+        obj.children.forEach(child => {
+          if(child.userData && child.userData.esRifleProcedural){
+            child.visible = (animElegida === 'idle' && r.vivo);
+          }
+        });
+      }
+    });
   }
 }
 
