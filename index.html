@@ -623,21 +623,49 @@ const Modelos = {
       }
     });
 
-        // Mixer de animaciones
+            // Mixer de animaciones
     const mixer = new THREE.AnimationMixer(clon);
     const acciones = {};
     for(const key in this.animaciones){
       let clip = this.animaciones[key];
       if(clip){
-        // 🚫 Quitar TODAS las pistas de posición de walk/run (elimina cualquier root motion)
-        // Esto deja solo rotaciones (quaternion) y escala, así el personaje camina en el sitio
+        // 🚫 Anular el root motion HORIZONTAL pero conservar la altura (Y)
         if(key === 'walk' || key === 'run' || key === 'aim' || key === 'idle'){
-          const tracksFiltradas = clip.tracks.filter(track => {
-            // Descartar cualquier pista de posición (el personaje se mueve por red)
-            return !track.name.endsWith('.position');
-          });
+          const tracksFiltradas = clip.tracks.map(track => {
+            const nombreLower = track.name.toLowerCase();
+            const esPosicion = track.name.endsWith('.position');
+            const esHips = nombreLower.indexOf('hips') >= 0;
+            const esRoot = nombreLower.indexOf('root') >= 0 || nombreLower.indexOf('armature') >= 0;
+
+            // 🎯 Hips posición: conservar Y (altura), anular X y Z (root motion horizontal)
+            if(esPosicion && esHips){
+              const clonado = track.clone();
+              const valores = clonado.values;
+              const xBase = valores[0];      // primera X (posición base)
+              const zBase = valores[2];      // primera Z (posición base)
+              for(let i = 0; i < valores.length; i += 3){
+                valores[i] = xBase;          // X fija
+                valores[i + 2] = zBase;      // Z fija
+                // valores[i + 1] se deja tal cual (Y de la animación)
+              }
+              return clonado;
+            }
+
+            // 🚫 RootNode/Armature posición: eliminar por completo (evita el rebote residual)
+            if(esPosicion && esRoot){
+              return null;
+            }
+
+            // 🚫 Cualquier otra posición (brazos, piernas): eliminar (no deberían tener)
+            if(esPosicion){
+              return null;
+            }
+
+            return track;
+          }).filter(t => t !== null);
+
           clip = new THREE.AnimationClip(clip.name, clip.duration, tracksFiltradas);
-          console.log('✂️ ' + key + ': ' + clip.tracks.length + ' pistas (sin posiciones)');
+          console.log('✂️ ' + key + ': ' + clip.tracks.length + ' pistas (sin root motion)');
         }
 
         acciones[key] = mixer.clipAction(clip);
@@ -4286,40 +4314,19 @@ function crearRivalMesh(){
     g.userData.modeloWrapper = wrapper;
     g.userData.modeloInst = instancia;
 
-        // 🔫 Añadir rifle procedural pegado a la mano derecha (búsqueda robusta)
-    let huesoMano = null;
-    const huesosDisponibles = [];
-    instancia.mesh.traverse(obj => {
-      if(obj.isBone){
-        huesosDisponibles.push(obj.name);
-        if(huesoMano) return;
-        const n = obj.name.toLowerCase();
-        // Acepta cualquier variante: mixamorigRightHand, mixamorig:RightHand, Hand_R, RightHand_03, etc.
-        if(n.indexOf('righthand') >= 0 ||
-           n.indexOf('right_hand') >= 0 ||
-           n.indexOf('hand_r') >= 0 ||
-           n.indexOf('hand.r') >= 0 ||
-           n === 'rhand' ||
-           n.indexOf('r_hand') >= 0){
-          huesoMano = obj;
-        }
-      }
-    });
+            // 🔫 Añadir rifle procedural — anclado al grupo del personaje (no al hueso)
+    // Esto garantiza que siempre se ve, independientemente de cómo rote el modelo
+    const rifle = crearRifleProcedural();
+    rifle.scale.setScalar(0.55);
+    // El personaje está dentro del wrapper con rotación -90° X, así que usamos
+    // coordenadas del wrapper para colocar el rifle "al frente del pecho".
+    // El personaje mide ~1.8m de alto; el pecho está a ~1.25m.
+    rifle.position.set(0.22, 1.25, 0.28);   // (derecha, altura pecho, adelante)
+    rifle.rotation.set(0, 0, 0);            // sin rotación extra
+    wrapper.add(rifle);
+    g.userData.rifle = rifle;
 
-    console.log('🦴 Huesos del modelo:', huesosDisponibles.join(', '));
-
-    if(huesoMano){
-      console.log('✅ Hueso mano derecha encontrado:', huesoMano.name);
-      const rifle = crearRifleProcedural();
-      rifle.scale.setScalar(0.85);
-      // ⚠️ Compensar la rotación del wrapper (-90° X) para que el rifle apunte hacia adelante
-      rifle.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
-      rifle.position.set(0.05, 0.10, 0.02);
-      huesoMano.add(rifle);
-      g.userData.rifle = rifle;
-    } else {
-      console.warn('⚠️ No se encontró el hueso de la mano derecha. Huesos vistos:', huesosDisponibles.length);
-    }
+    console.log('🔫 Rifle añadido en posición fija:', rifle.position.x, rifle.position.y, rifle.position.z);
 
     // 🎯 Hitboxes invisibles para el sistema de daño
     const invisible = new THREE.MeshBasicMaterial({ visible: false });
