@@ -623,21 +623,21 @@ const Modelos = {
       }
     });
 
-       // Mixer de animaciones
+        // Mixer de animaciones
     const mixer = new THREE.AnimationMixer(clon);
     const acciones = {};
     for(const key in this.animaciones){
       let clip = this.animaciones[key];
       if(clip){
-        // 🚫 Quitar "root motion" de walk y run (el personaje se traslada por red)
-        if(key === 'walk' || key === 'run'){
+        // 🚫 Quitar TODAS las pistas de posición de walk/run (elimina cualquier root motion)
+        // Esto deja solo rotaciones (quaternion) y escala, así el personaje camina en el sitio
+        if(key === 'walk' || key === 'run' || key === 'aim' || key === 'idle'){
           const tracksFiltradas = clip.tracks.filter(track => {
-            // Mantener solo las pistas que NO sean la posición del hueso raíz
-            const esHips = track.name.indexOf('Hips') >= 0 || track.name.indexOf('hips') >= 0;
-            const esPosicion = track.name.indexOf('.position') >= 0;
-            return !(esHips && esPosicion);
+            // Descartar cualquier pista de posición (el personaje se mueve por red)
+            return !track.name.endsWith('.position');
           });
           clip = new THREE.AnimationClip(clip.name, clip.duration, tracksFiltradas);
+          console.log('✂️ ' + key + ': ' + clip.tracks.length + ' pistas (sin posiciones)');
         }
 
         acciones[key] = mixer.clipAction(clip);
@@ -4286,17 +4286,40 @@ function crearRivalMesh(){
     g.userData.modeloWrapper = wrapper;
     g.userData.modeloInst = instancia;
 
-    // 🔫 Añadir rifle procedural pegado a la mano derecha
+        // 🔫 Añadir rifle procedural pegado a la mano derecha (búsqueda robusta)
+    let huesoMano = null;
+    const huesosDisponibles = [];
     instancia.mesh.traverse(obj => {
-      if(obj.isBone && (obj.name.indexOf('RightHand') >= 0 || obj.name.indexOf('rightHand') >= 0)){
-        const rifle = crearRifleProcedural();
-        // Escala y rotación del rifle para que encaje en la mano
-        rifle.scale.setScalar(0.85);
-        rifle.rotation.set(0, Math.PI / 2, 0);
-        rifle.position.set(0.05, 0.02, 0.05);
-        obj.add(rifle);
+      if(obj.isBone){
+        huesosDisponibles.push(obj.name);
+        if(huesoMano) return;
+        const n = obj.name.toLowerCase();
+        // Acepta cualquier variante: mixamorigRightHand, mixamorig:RightHand, Hand_R, RightHand_03, etc.
+        if(n.indexOf('righthand') >= 0 ||
+           n.indexOf('right_hand') >= 0 ||
+           n.indexOf('hand_r') >= 0 ||
+           n.indexOf('hand.r') >= 0 ||
+           n === 'rhand' ||
+           n.indexOf('r_hand') >= 0){
+          huesoMano = obj;
+        }
       }
     });
+
+    console.log('🦴 Huesos del modelo:', huesosDisponibles.join(', '));
+
+    if(huesoMano){
+      console.log('✅ Hueso mano derecha encontrado:', huesoMano.name);
+      const rifle = crearRifleProcedural();
+      rifle.scale.setScalar(0.85);
+      // ⚠️ Compensar la rotación del wrapper (-90° X) para que el rifle apunte hacia adelante
+      rifle.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+      rifle.position.set(0.05, 0.10, 0.02);
+      huesoMano.add(rifle);
+      g.userData.rifle = rifle;
+    } else {
+      console.warn('⚠️ No se encontró el hueso de la mano derecha. Huesos vistos:', huesosDisponibles.length);
+    }
 
     // 🎯 Hitboxes invisibles para el sistema de daño
     const invisible = new THREE.MeshBasicMaterial({ visible: false });
@@ -4428,17 +4451,9 @@ function actualizarRival(dt){
   }
   Modelos.reproducir(inst, animElegida, animElegida === 'death' ? 0.15 : 0.25);
 
-  // 🔫 Mostrar rifle solo cuando esté quieto y vivo
-  if(Net.rivalMesh){
-    Net.rivalMesh.traverse(obj => {
-      if(obj.isBone && (obj.name.indexOf('RightHand') >= 0 || obj.name.indexOf('rightHand') >= 0)){
-        obj.children.forEach(child => {
-          if(child.userData && child.userData.esRifleProcedural){
-            child.visible = (animElegida === 'idle' && r.vivo);
-          }
-        });
-      }
-    });
+    // 🔫 Mostrar rifle solo cuando esté quieto y vivo
+  if(Net.rivalMesh && Net.rivalMesh.userData.rifle){
+    Net.rivalMesh.userData.rifle.visible = (animElegida === 'idle' && r.vivo);
   }
 }
 
