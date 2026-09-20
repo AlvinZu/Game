@@ -1,4 +1,4 @@
-const CACHE_NAME = 'operacion-arena-v6';   // ← sube el número cada vez que subas cambios
+const CACHE_NAME = 'operacion-arena-v7';   // ← sube el número cada vez que subas cambios
 const urlsToCache = [
   './index.html',
   './manifest.json',
